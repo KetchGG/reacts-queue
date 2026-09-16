@@ -196,6 +196,7 @@ dialog form{display:grid;gap:10px}
     <select id="daySel" aria-label="Choose a day"></select>
     <span id="chips" style="display:contents"></span>
     <span class="spacer"></span>
+    <label class="tog"><input type="checkbox" id="queuedOnly"> Queued only</label>
     <label class="tog"><input type="checkbox" id="hideDone"> Hide watched &amp; skipped</label>
     <button class="btn ghost" id="copyQ" type="button">Copy queue</button>
     <span class="who" id="who"></span>
@@ -233,6 +234,7 @@ dialog form{display:grid;gap:10px}
           <div data-t="uncommon"><i>Uncommon</i> Shorts and quick bits</div>
           <div data-t="mod"><i>Mod picks</i> Added by mods</div>
           <div><span class="pill off">Official</span> Blizzard's own channel or site</div>
+          <div><span class="pill off">Blue post</span> Reports an official Blizzard forum/dev reply</div>
           <div><span class="pill fresh">Today</span> Posted on the list's date</div>
         </div>
       </section>
@@ -373,6 +375,7 @@ function store(k, v) { try { v == null ? localStorage.removeItem(k) : localStora
 function load(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } }
 function loadMod() { const m = load("rq-mod", null); return m && m.name ? m : null; }
 $("hideDone").checked = !!load("rq-hide", false);
+$("queuedOnly").checked = !!load("rq-queued-only", false);
 $("addCat").innerHTML = Object.entries(CATS).map(([k, l]) => `<option value="${k}"${k === "classic" ? " selected" : ""}>${l}</option>`).join("");
 
 // ------------------------------------------------------------------ helpers
@@ -450,6 +453,7 @@ function acts(i) {
 function pills(i) {
   const out = [];
   if (i.official) out.push(`<span class="pill off">Official</span>`);
+  else if (i.bluePost) out.push(`<span class="pill off">Blue post</span>`);
   if (isFresh(i)) out.push(`<span class="pill fresh">Today</span>`);
   else if (i.posted) out.push(`<span class="pill">${esc(i.posted)}</span>`);
   if (i.stats) out.push(`<span class="pill stat">${esc(i.stats)}</span>`);
@@ -517,10 +521,12 @@ function render() {
   items.forEach((i) => { const s = stateOf(i.id); if (s === "queued") qd++; if (s === "watched") w++; if (isFresh(i)) f++; });
   $("nPicks").textContent = items.length; $("nNew").textContent = f; $("nQueued").textContent = qd; $("nWatched").textContent = w;
   const hide = $("hideDone").checked;
+  const queuedOnly = $("queuedOnly").checked;
   let html = "";
   for (const [t, label, sub, mode] of SECTIONS) {
     const list = items.filter((i) => i.tier === t && (cat === "all" || i.cat === cat))
       .filter((i) => { const s = stateOf(i.id); return !(hide && (s === "watched" || s === "skip")); })
+      .filter((i) => !queuedOnly || stateOf(i.id) === "queued")
       .sort((a, b) => (b.official ? 1 : 0) - (a.official ? 1 : 0) || (isFresh(b) ? 1 : 0) - (isFresh(a) ? 1 : 0));
     if (!list.length) continue;
     html += `<section class="sec" data-t="${t}"><h2>${label}<span>${sub} · ${list.length}</span></h2>` +
@@ -645,6 +651,7 @@ document.addEventListener("click", (e) => {
 });
 $("daySel").addEventListener("change", async () => { sel = $("daySel").value; cat = "all"; await refresh(); });
 $("hideDone").addEventListener("change", () => { store("rq-hide", $("hideDone").checked); render(); });
+$("queuedOnly").addEventListener("change", () => { store("rq-queued-only", $("queuedOnly").checked); render(); });
 $("copyQ").addEventListener("click", copyQueue);
 $("notes").addEventListener("input", queueNotes);
 $("addForm").addEventListener("submit", addLink);

@@ -14,12 +14,19 @@ export function guessCat(text, fallback = "") {
   return fallback || "variety";
 }
 
+/** Does this news item report on an official Blizzard forum/dev reply ("blue post")? */
+const BLUE_POST_RE = /\b(blizzard\s+(?:confirm|clarif|announc|state|respond|say)\w*|blue\s?post|blue\s?tracker|community\s+manager|developer\s+comment|dev\s+comment|via\s+the\s+(?:blizzard|wow)\s+forums?)\b/i;
+export function isBluePost(text) {
+  return BLUE_POST_RE.test(String(text || ""));
+}
+
 /** Score used by the rules ranker and to trim what is sent to Claude. */
 export function ruleScore(c) {
   if (c.series) return 1000;
   let s = 0;
   if (c.official) s += 60;
   if (c.origin === "news") s += 18 + (c.priority || 0) * 6;
+  if (c.bluePost) s += 20; // reporting directly on an official Blizzard forum/dev reply
   if (c.origin === "youtube-creator") s += 22;
   if (c.origin === "youtube-search") s += 10;
   if (c.origin === "reddit") s += 14;
@@ -47,6 +54,7 @@ function autoWhy(c) {
   if (c.series) return `New ${c.series} episode.`;
   const bits = [];
   if (c.official) bits.push("Straight from Blizzard");
+  else if (c.bluePost) bits.push("Reports an official Blizzard forum/dev reply");
   if (c.origin === "reddit") bits.push(`Top post on r/${c.sub}`);
   const st = statLine(c);
   if (st) bits.push(st);
@@ -99,7 +107,7 @@ export async function claudeRank(cands, ctx, { apiKey, model, min = 14, max = 24
   const lines = cands.map((c) => ({
     ref: c.ref,
     title: c.title,
-    source: c.source + (c.official ? " (OFFICIAL)" : ""),
+    source: c.source + (c.official ? " (OFFICIAL)" : "") + (c.bluePost ? " (reports a Blizzard blue post)" : ""),
     series: c.series || undefined,
     kind: c.kind,
     catGuess: c.cat,

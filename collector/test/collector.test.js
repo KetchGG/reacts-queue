@@ -6,7 +6,7 @@ import { generateKeyPairSync } from "node:crypto";
 import { setFetch, isoDurationToSec, canonicalUrl, youtubeId, ymdIn, monDayIn, stripTags } from "../lib/util.js";
 import { parseFeed, parseBlizzardNews } from "../lib/feeds.js";
 import { isShort } from "../lib/youtube.js";
-import { guessCat, sanitizeList, rulesRank } from "../lib/rank.js";
+import { guessCat, isBluePost, sanitizeList, rulesRank } from "../lib/rank.js";
 
 const NOW = new Date("2026-09-17T13:00:00Z"); // 9 AM ET
 const iso = (hoursAgo) => new Date(NOW - hoursAgo * 3600e3).toISOString();
@@ -44,6 +44,10 @@ test("helpers", () => {
   assert.equal(guessCat("Hardcore deaths compilation"), "classic");
   assert.equal(guessCat("Midnight season 3 patch notes"), "blizzard");
   assert.equal(guessCat("GTA 6 trailer"), "variety");
+  assert.equal(isBluePost("Blizzard Confirms New Raid Difficulty"), true);
+  assert.equal(isBluePost("A blue post on the forums addressed the bug"), true);
+  assert.equal(isBluePost("Community Manager shares roadmap update"), true);
+  assert.equal(isBluePost("Sodapoppin streams WoW Forever for 8 hours"), false);
 });
 
 test("RSS and Atom parsing", () => {
@@ -100,7 +104,7 @@ function fakeWorld({ claudeFails = false } = {}) {
     AsmonTV: { id: "UCasmongoldTV0000000001", title: "Asmongold TV" },
   };
   const uploads = {
-    UUgA_9xZNJ7_cHYUaswLGcag: [["hcm386", "Classic Hardcore Moments #386", 20], ["hcm385", "Classic Hardcore Moments #385", 50], ["hcm384", "Classic Hardcore Moments #384", 400]],
+    UUgA_9xZNJ7_cHYUaswLGcag: [["hcm386", "Classic Hardcore Moments #386", 20], ["hcm385", "Classic Hardcore Moments #385", 50], ["hcm383", "Classic Hardcore Moments #383", 100], ["hcm384", "Classic Hardcore Moments #384", 400]],
     UUbLj9QP9FAaHs_647QckGtg: [["wowbeta0001", "World of Warcraft: Forever | Beta Launch", 5], ["oldannounce1", "BlizzCon Announcement Recap", 48], ["oldtrailer1", "Old trailer", 200]],
     UUxaryuxaryuxaryuxaryu01: [["react000001", "Xaryu Reacts to Classic Hardcore Moments #385", 10]],
     UU8hLeDz9mD4dUrkvXjH9rjw: [["whvideo0001", "Forever beta: everything we know", 8]],
@@ -115,6 +119,7 @@ function fakeWorld({ claudeFails = false } = {}) {
     "hcm386": vid("hcm386", "Classic Hardcore Moments #386", 20, channels.ClassicHardcoreMoments.id, "Classic Hardcore Moments"),
     "hcm385": vid("hcm385", "Classic Hardcore Moments #385", 50, channels.ClassicHardcoreMoments.id, "Classic Hardcore Moments"),
     "hcm384": vid("hcm384", "Classic Hardcore Moments #384", 400, channels.ClassicHardcoreMoments.id, "Classic Hardcore Moments"),
+    "hcm383": vid("hcm383", "Classic Hardcore Moments #383", 100, channels.ClassicHardcoreMoments.id, "Classic Hardcore Moments"),
     "wowbeta0001": vid("wowbeta0001", "World of Warcraft: Forever | Beta Launch", 5, channels.Warcraft.id, "World of Warcraft", { views: 300000 }),
     "oldannounce1": vid("oldannounce1", "BlizzCon Announcement Recap", 48, channels.Warcraft.id, "World of Warcraft", { views: 250000 }),
     "whvideo0001": vid("whvideo0001", "Forever beta: everything we know", 8, channels.Wowhead.id, "Wowhead"),
@@ -163,6 +168,7 @@ function fakeWorld({ claudeFails = false } = {}) {
     if (u.hostname === "www.wowhead.com") {
       return text(`<rss><channel>
         <item><title>Forever Beta Patch Notes</title><link>https://www.wowhead.com/news=1/forever-beta-patch-notes</link><pubDate>${new Date(NOW - 3 * 3600e3).toUTCString()}</pubDate><description>notes</description></item>
+        <item><title>Blizzard Confirms New Raid Difficulty for Forever</title><link>https://www.wowhead.com/news=2/blueconfirm1</link><pubDate>${new Date(NOW - 2 * 3600e3).toUTCString()}</pubDate><description>Blizzard confirmed via the forums that a new raid difficulty is coming.</description></item>
         <item><title>Ancient story</title><link>https://www.wowhead.com/news=0/old</link><pubDate>${new Date(NOW - 99 * 3600e3).toUTCString()}</pubDate></item>
         <item><title>Already listed yesterday</title><link>https://www.wowhead.com/news=5/listed</link><pubDate>${new Date(NOW - 20 * 3600e3).toUTCString()}</pubDate></item>
       </channel></rss>`);
@@ -191,18 +197,22 @@ function fakeWorld({ claudeFails = false } = {}) {
         days: [
           fakeDoc("days", "2026-09-16", {
             date: "2026-09-16", headline: "", coverage: "", generated_at: iso(24),
-            items: JSON.stringify([{ id: "260916-01", url: "https://www.wowhead.com/news=5/listed", title: "Skyborne drama" }]),
+            items: JSON.stringify([
+              { id: "260916-01", url: "https://www.wowhead.com/news=5/listed", title: "Skyborne drama" },
+              { id: "260916-02", url: "https://www.youtube.com/watch?v=hcm383", title: "Classic Hardcore Moments #383", series: "Hardcore Moments #383" },
+            ]),
           }),
         ],
         marks: [
           fakeDoc("marks", "2026-09-16_260916-01", { date: "2026-09-16", item_id: "260916-01", state: "watched", by_name: "" }),
+          fakeDoc("marks", "2026-09-16_260916-02", { date: "2026-09-16", item_id: "260916-02", state: "watched", by_name: "" }),
           fakeDoc("marks", "2026-01-01_oldmark01", { date: "2026-01-01", item_id: "oldmark01", state: "" }),
         ],
         extras: [
           fakeDoc("extras", "extra1", { date: "2026-09-16", url: "https://www.reddit.com/r/classicwow/comments/zz/mod/", title: "mod pick", note: "", cat: "other", by_name: "", added_at: iso(24), removed: false }),
         ],
         settings: [fakeDoc("settings", "notes", { value: JSON.stringify({ text: "more hardcore please" }) })],
-        app_state: [fakeDoc("app_state", "collector", { value: JSON.stringify({ seenNews: { "World of Warcraft": ["24304071"] }, seriesListed: { "Hardcore Moments": ["hcm384"] } }) })],
+        app_state: [fakeDoc("app_state", "collector", { value: JSON.stringify({ seenNews: { "World of Warcraft": ["24304071"] } }) })],
       };
       const prefix = `/v1/projects/${TEST_PROJECT}/databases/(default)/documents`;
       if (!u.pathname.startsWith(prefix)) throw new Error("unrouted firestore " + url);
@@ -272,7 +282,8 @@ async function runWith(envOverrides, worldOpts) {
 test("end to end: collects, filters, ranks with Claude, saves", async () => {
   const { day, problems, calls, summary } = await runWith({});
   const urls = day.items.map((i) => i.url);
-  // Series: #386 new; #385 already reacted to; #384 already listed
+  // Series: #386 new; #385 already reacted to; #384 outside the 7-day window; #383 already
+  // marked watched on a prior day, so it does not resurface even though it's within the window.
   const series = day.items.filter((i) => i.series);
   assert.deepEqual(series.map((s) => s.series), ["Hardcore Moments #386"]);
   // Official upload kept, marked official, Reddit thread merged into it
@@ -288,12 +299,16 @@ test("end to end: collects, filters, ranks with Claude, saves", async () => {
   assert.ok(oldAnnounce?.official, "48h-old official upload should still be included");
   // Xaryu's own upload never gets suggested back to him, even when a keyword search surfaces it.
   assert.ok(!urls.some((u) => u.includes("xaryuown1")), "should never suggest Xaryu react to his own video");
+  // A Wowhead article reporting an official Blizzard forum reply is flagged as a blue post.
+  const blueItem = day.items.find((i) => i.url.includes("blueconfirm1"));
+  assert.equal(blueItem?.bluePost, true, "should detect and flag the blue-post-sourced article");
   // A tracked creator's off-topic personal-drama upload (no gaming-relevance keyword) is dropped,
   // while a gaming-relevant "variety" upload from the same creator gets through.
   assert.ok(!urls.some((u) => u.includes("offtopic1")), "off-topic variety content should be dropped");
   assert.ok(urls.some((u) => u.includes("ontopic1")), "on-topic variety content should still get through");
-  // Low-view search result, stale news, already-listed news, low-score/stickied reddit, off-topic PC Gamer dropped
-  for (const bad of ["lowviews001", "news=0/old", "news=5/listed", "/a3/", "/a4/", "pcgamer.com/deal"]) {
+  // Low-view search result, stale news, already-listed news, low-score/stickied reddit, off-topic
+  // PC Gamer, and the already-watched series episode are all dropped
+  for (const bad of ["lowviews001", "news=0/old", "news=5/listed", "/a3/", "/a4/", "pcgamer.com/deal", "hcm383"]) {
     assert.ok(!urls.some((u) => u.includes(bad)), `should drop ${bad}`);
   }
   // Official page: only the unseen article
@@ -313,13 +328,12 @@ test("end to end: collects, filters, ranks with Claude, saves", async () => {
   }
   assert.equal(new Set(day.items.map((i) => i.id)).size, day.items.length);
   assert.equal(day.headline, "Forever beta is live.");
-  // Writes: day, state (series tracker updated), sources, prune
+  // Writes: day, state (seen-news tracker updated), sources, prune
   const dayWrite = calls.writes.find((w) => w.collection === "days" && w.method === "PATCH");
   assert.equal(dayWrite.fields.date, "2026-09-17");
   assert.equal(dayWrite.headers.Authorization, "Bearer test-access-token");
   const stateWrite = calls.writes.find((w) => w.collection === "app_state" && w.method === "PATCH");
   const stateValue = JSON.parse(stateWrite.fields.value);
-  assert.deepEqual(stateValue.seriesListed["Hardcore Moments"].slice(0, 2), ["hcm386", "hcm384"]);
   assert.ok(stateValue.seenNews["World of Warcraft"].includes("24309999"));
   assert.ok(calls.writes.some((w) => w.method === "BATCH_DELETE" && w.paths.some((p) => p.includes("marks/2026-01-01_oldmark01"))));
   // Massively OP outage is reported, not fatal

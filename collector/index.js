@@ -13,7 +13,7 @@ import { createYouTube, isShort } from "./lib/youtube.js";
 import { createReddit } from "./lib/reddit.js";
 import { fetchFeed, fetchBlizzardNews } from "./lib/feeds.js";
 import { createStore } from "./lib/store.js";
-import { guessCat, ruleScore, statLine, rulesRank, claudeRank, sanitizeList } from "./lib/rank.js";
+import { guessCat, isBluePost, ruleScore, statLine, rulesRank, claudeRank, sanitizeList } from "./lib/rank.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const args = new Set(process.argv.slice(2));
@@ -39,16 +39,26 @@ export async function run({ now = new Date(), dry = DRY, noClaude = args.has("--
         store.state("collector", {}), store.day(today),
       ])
     : [null, [], [], [], {}, null];
-  const state = { channels: {}, avatars: {}, seenNews: {}, seriesListed: {}, ...stateVal };
+  const state = { channels: {}, avatars: {}, seenNews: {}, ...stateVal };
   const notes = notesVal?.text || "";
 
   const listedBefore = new Set();
   const watched = [];
+  // Series episodes keep resurfacing across re-runs (useful while iterating on the collector,
+  // where the same run happens many times in a day with nothing new to show) until a mod
+  // explicitly marks one watched or skip — derived fresh from marks each run, not a persistent
+  // "shown once, never again" list, so it never goes stale.
+  const seriesWatched = new Set();
   const markByKey = new Map(marks.map((m) => [`${m.date}|${m.item_id}`, m.state]));
   for (const d of recentDays) {
     for (const it of d.items || []) {
       if (d.date !== today) listedBefore.add(canonicalUrl(it.url));
-      if (markByKey.get(`${d.date}|${it.id}`) === "watched") watched.push(it.title);
+      const markState = markByKey.get(`${d.date}|${it.id}`);
+      if (markState === "watched") watched.push(it.title);
+      if (it.series && (markState === "watched" || markState === "skip")) {
+        const vid = youtubeId(it.url);
+        if (vid) seriesWatched.add(vid);
+      }
     }
   }
   const modPicks = [];
@@ -100,8 +110,7 @@ export async function run({ now = new Date(), dry = DRY, noClaude = args.has("--
         if (!c) { note(`Series ${s.name}`, new Error(`channel ${s.handle} not found`)); continue; }
         try {
           const ups = await yt.recentUploads(c.uploads, 10);
-          const listed = new Set(state.seriesListed[s.name] || []);
-          const fresh = ups.filter((u) => Date.parse(u.publishedAt) >= seriesCut && !listed.has(u.videoId)
+          const fresh = ups.filter((u) => Date.parse(u.publishedAt) >= seriesCut && !seriesWatched.has(u.videoId)
             && (!s.titleMatch || u.title.toLowerCase().includes(s.titleMatch.toLowerCase()))).slice(0, 5);
           for (const u of fresh) vids.set(u.videoId, { origin: "series", series: s.name });
         } catch (e) { note(`Series ${s.name}`, e); }
@@ -234,7 +243,7 @@ export async function run({ now = new Date(), dry = DRY, noClaude = args.has("--
         if (f.keywords && !f.keywords.some((k) => text.toLowerCase().includes(k))) continue;
         add({
           origin: "news", priority: f.priority || 0, url: it.link, title: it.title, source: f.name, kind: "article",
-          cat: f.cat || guessCat(text), publishedAt: it.publishedAt, thumb: it.image, excerpt: it.summary,
+          cat: f.cat || guessCat(text), bluePost: isBluePost(text), publishedAt: it.publishedAt, thumb: it.image, excerpt: it.summary,
           metrics: { ageHours: ageHours(it.publishedAt) },
         });
       }
@@ -307,6 +316,7 @@ export async function run({ now = new Date(), dry = DRY, noClaude = args.has("--
       tier: p.tier,
       series: c.series || undefined,
       official: c.official || undefined,
+      bluePost: c.bluePost || undefined,
       cat: p.cat,
       kind: c.kind === "post" ? "post" : c.kind,
       title: c.title,
@@ -337,10 +347,6 @@ export async function run({ now = new Date(), dry = DRY, noClaude = args.has("--
   };
 
   // ------------------------------------------------------------------ save
-  for (const i of seriesNew) {
-    const c = pool.find((x) => x.url === i.url);
-    if (c?.seriesName) state.seriesListed[c.seriesName] = [c.videoId, ...(state.seriesListed[c.seriesName] || [])].slice(0, 50);
-  }
   if (!dry) {
     await store.putDay(day);
     await store.putState("collector", state);

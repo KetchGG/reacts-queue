@@ -45,8 +45,8 @@
   ],
 
   "feeds": [
-    { "name": "Wowhead", "url": "https://www.wowhead.com/news/rss/all", "priority": 2 },
-    { "name": "Wowhead", "url": "https://www.wowhead.com/news/rss/classic", "priority": 2 },
+    { "name": "Wowhead", "url": "https://www.wowhead.com/news/rss/all", "priority": 3 },
+    { "name": "Wowhead", "url": "https://www.wowhead.com/news/rss/classic", "priority": 3 },
     { "name": "Blizzard Watch", "url": "https://blizzardwatch.com/feed/", "priority": 1 },
     { "name": "Massively OP", "url": "https://massivelyop.com/feed/", "priority": 1, "cat": "mmo" },
     { "name": "PC Gamer", "url": "https://www.pcgamer.com/rss/", "priority": 0, "cat": "variety", "keywords": ["mmo", "blizzard", "warcraft", "announce", "reveal", "trailer", "release date", "shutting down", "early access"] }
@@ -58,7 +58,7 @@
 
   "rankingHints": [
     "Xaryu mainly plays WoW Classic, Classic Hardcore and WoW: Forever (Blizzard's Classic+, launched Nov 4, 2026). He also does variety streams about major new game news.",
-    "Official Blizzard content and Wowhead coverage beat community re-coverage of the same story.",
+    "Official Blizzard content and Wowhead coverage beat community re-coverage of the same story. A Wowhead article that reports on an official Blizzard forum post or developer comment (a \"blue post\") is marked as such and should rank close to official priority — it's effectively Blizzard speaking, just relayed by Wowhead.",
     "After a major Blizzard event (BlizzCon, expansion launches, big patches), official announcement and panel videos stay top priority for several days, not just the last day or two.",
     "Big drama, strong or contrarian takes, and anything featuring Xaryu's friends (not Xaryu himself) make good react content — but only when it's about gaming, streaming or Blizzard news. Skip personal-life drama, relationship takes or celebrity gossip with no gaming angle, even from a tracked creator.",
     "Retail-only minutiae (small hotfixes, shop items) is low priority unless it is drama."
