@@ -289,11 +289,18 @@ async function fsGet(path) {
   if (!r.ok) throw new Error(`Couldn't load data (${r.status})`);
   return fsDoc(await r.json());
 }
+// Goes through :runQuery, not the plain documents.list GET endpoint — the latter doesn't support
+// descending order on __name__ without a manual composite index; :runQuery uses Firestore's
+// automatic per-field indexes correctly.
 async function fsList(collection, {orderBy = "__name__", direction = "desc", limit = 20} = {}) {
-  const qs = new URLSearchParams({orderBy: `${orderBy} ${direction}`, pageSize: String(limit)});
-  const r = await fetch(`${FS_ROOT}/${collection}?${qs}`, {cache: "no-store"});
+  const structuredQuery = {
+    from: [{collectionId: collection}],
+    orderBy: [{field: {fieldPath: orderBy}, direction: direction === "desc" ? "DESCENDING" : "ASCENDING"}],
+    limit,
+  };
+  const r = await fetch(`${FS_ROOT}:runQuery`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({structuredQuery}), cache: "no-store"});
   if (!r.ok) throw new Error(`Couldn't load data (${r.status})`);
-  return ((await r.json()).documents || []).map(fsDoc);
+  return ((await r.json()) || []).filter((x) => x.document).map((x) => fsDoc(x.document));
 }
 async function fsQuery(collection, fieldPath, op, value) {
   const structuredQuery = {from: [{collectionId: collection}], where: {fieldFilter: {field: {fieldPath}, op, value: {stringValue: value}}}};

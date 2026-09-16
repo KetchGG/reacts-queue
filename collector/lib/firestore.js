@@ -49,11 +49,20 @@ export function createFirestoreClient({ serviceAccountJson }) {
       catch (e) { if (e.status === 404) return null; throw e; }
     },
 
-    /** Unfiltered list, e.g. { orderBy: "__name__", direction: "desc", limit: 8 } to get the N most recent by doc id. */
+    /**
+     * Unfiltered, ordered list, e.g. { orderBy: "__name__", direction: "desc", limit: 8 } to get
+     * the N most recent by doc id. Goes through :runQuery rather than the plain documents.list GET
+     * endpoint — the latter doesn't support descending order on __name__ without a manual composite
+     * index, while :runQuery uses Firestore's automatic per-field indexes correctly.
+     */
     async listDocs(collection, { orderBy = "__name__", direction = "desc", limit = 20 } = {}) {
-      const qs = new URLSearchParams({ orderBy: `${orderBy} ${direction}`, pageSize: String(limit) });
-      const r = await call(`/${collection}?${qs}`);
-      return (r.documents || []).map(fromDoc);
+      const structuredQuery = {
+        from: [{ collectionId: collection }],
+        orderBy: [{ field: { fieldPath: orderBy }, direction: direction === "desc" ? "DESCENDING" : "ASCENDING" }],
+        limit,
+      };
+      const r = await call(":runQuery", { method: "POST", body: JSON.stringify({ structuredQuery }) });
+      return (r || []).filter((x) => x.document).map((x) => fromDoc(x.document));
     },
 
     /** Filtered query: runQuery(collection, "date", "GREATER_THAN_OR_EQUAL" | "LESS_THAN", value). */

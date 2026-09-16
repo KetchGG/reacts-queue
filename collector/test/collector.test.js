@@ -202,12 +202,21 @@ function fakeWorld({ claudeFails = false } = {}) {
       if (!u.pathname.startsWith(prefix)) throw new Error("unrouted firestore " + url);
       const rest = u.pathname.slice(prefix.length);
       if (rest === ":runQuery") {
-        const { from, where } = JSON.parse(opts.body).structuredQuery;
+        const { from, where, orderBy, limit } = JSON.parse(opts.body).structuredQuery;
         const collection = from[0].collectionId;
-        const { field, op, value } = where.fieldFilter;
-        const cmp = (a, b) => (op === "GREATER_THAN_OR_EQUAL" ? a >= b : op === "LESS_THAN" ? a < b : true);
-        const matches = (firestoreDocs[collection] || []).filter((d) => cmp(d.fields[field.fieldPath].stringValue, value.stringValue));
-        return json(matches.map((document) => ({ document })));
+        let docs = [...(firestoreDocs[collection] || [])];
+        if (where) {
+          const { field, op, value } = where.fieldFilter;
+          const cmp = (a, b) => (op === "GREATER_THAN_OR_EQUAL" ? a >= b : op === "LESS_THAN" ? a < b : true);
+          docs = docs.filter((d) => cmp(d.fields[field.fieldPath].stringValue, value.stringValue));
+        }
+        if (orderBy?.length) {
+          const { field, direction } = orderBy[0];
+          const dir = direction === "DESCENDING" ? -1 : 1;
+          docs.sort((a, b) => dir * (field.fieldPath === "__name__" ? a.name.localeCompare(b.name) : 0));
+        }
+        if (limit) docs = docs.slice(0, limit);
+        return json(docs.map((document) => ({ document })));
       }
       if (rest === ":batchWrite") {
         const paths = JSON.parse(opts.body).writes.map((w) => w.delete);
