@@ -79,6 +79,7 @@ export async function run({ now = new Date(), dry = DRY, noClaude = args.has("--
       const refs = [...new Set([...cfg.series.map((s) => s.handle), ...cfg.officialChannels, ...cfg.creatorChannels, ...(cfg.reactedChannels || [])])];
       const ch = await yt.resolveChannels(refs, state.channels);
       const officialIds = new Set(cfg.officialChannels.map((r) => ch[r]?.id).filter(Boolean));
+      const ownIds = new Set((cfg.reactedChannels || []).map((r) => ch[r]?.id).filter(Boolean));
       const vids = new Map(); // videoId → { origin, series }
 
       // What Xaryu already reacted to
@@ -106,13 +107,19 @@ export async function run({ now = new Date(), dry = DRY, noClaude = args.has("--
         } catch (e) { note(`Series ${s.name}`, e); }
       }
 
-      // Official + creator uploads within the lookback
-      for (const [list, origin] of [[cfg.officialChannels, "youtube-official"], [cfg.creatorChannels, "youtube-creator"]]) {
+      // Official + creator uploads within the lookback. Official channels get a longer lookback
+      // and a bigger uploads window: big-event coverage (BlizzCon, expansion launches) is still
+      // worth surfacing days after it posts, even once creator/search results have moved past it.
+      const officialSince = now.getTime() - (cfg.officialLookbackHours || 96) * 3600e3;
+      for (const [list, origin, cutoff, max] of [
+        [cfg.officialChannels, "youtube-official", officialSince, 15],
+        [cfg.creatorChannels, "youtube-creator", since.getTime(), 8],
+      ]) {
         for (const r of list) {
           if (!ch[r]) continue;
           try {
-            for (const u of await yt.recentUploads(ch[r].uploads, 8)) {
-              if (Date.parse(u.publishedAt) >= since && !vids.has(u.videoId)) vids.set(u.videoId, { origin });
+            for (const u of await yt.recentUploads(ch[r].uploads, max)) {
+              if (Date.parse(u.publishedAt) >= cutoff && !vids.has(u.videoId)) vids.set(u.videoId, { origin });
             }
           } catch (e) { note(`YouTube ${r}`, e); }
         }
@@ -133,6 +140,7 @@ export async function run({ now = new Date(), dry = DRY, noClaude = args.has("--
         const v = details[id];
         if (!v || v.live === "upcoming") continue;
         if (v.lang && !/^en/i.test(v.lang)) continue;
+        if (ownIds.has(v.channelId)) continue; // never suggest Xaryu react to his own upload
         const official = officialIds.has(v.channelId);
         if (meta.origin === "youtube-search" && !official && v.views < (cfg.youtubeSearchMinViews || 0)) continue;
         const series = meta.series ? seriesLabel(meta.series, v.title) : "";

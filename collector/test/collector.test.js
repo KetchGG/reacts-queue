@@ -100,7 +100,7 @@ function fakeWorld({ claudeFails = false } = {}) {
   };
   const uploads = {
     UUgA_9xZNJ7_cHYUaswLGcag: [["hcm386", "Classic Hardcore Moments #386", 20], ["hcm385", "Classic Hardcore Moments #385", 50], ["hcm384", "Classic Hardcore Moments #384", 400]],
-    UUbLj9QP9FAaHs_647QckGtg: [["wowbeta0001", "World of Warcraft: Forever | Beta Launch", 5], ["oldtrailer1", "Old trailer", 200]],
+    UUbLj9QP9FAaHs_647QckGtg: [["wowbeta0001", "World of Warcraft: Forever | Beta Launch", 5], ["oldannounce1", "BlizzCon Announcement Recap", 48], ["oldtrailer1", "Old trailer", 200]],
     UUxaryuxaryuxaryuxaryu01: [["react000001", "Xaryu Reacts to Classic Hardcore Moments #385", 10]],
     UU8hLeDz9mD4dUrkvXjH9rjw: [["whvideo0001", "Forever beta: everything we know", 8]],
     UUYG7yOvrZV0Bja6EjImcAuQ: [],
@@ -114,9 +114,11 @@ function fakeWorld({ claudeFails = false } = {}) {
     "hcm385": vid("hcm385", "Classic Hardcore Moments #385", 50, channels.ClassicHardcoreMoments.id, "Classic Hardcore Moments"),
     "hcm384": vid("hcm384", "Classic Hardcore Moments #384", 400, channels.ClassicHardcoreMoments.id, "Classic Hardcore Moments"),
     "wowbeta0001": vid("wowbeta0001", "World of Warcraft: Forever | Beta Launch", 5, channels.Warcraft.id, "World of Warcraft", { views: 300000 }),
+    "oldannounce1": vid("oldannounce1", "BlizzCon Announcement Recap", 48, channels.Warcraft.id, "World of Warcraft", { views: 250000 }),
     "whvideo0001": vid("whvideo0001", "Forever beta: everything we know", 8, channels.Wowhead.id, "Wowhead"),
     "short000001": vid("short000001", "He died to a murloc #shorts", 6, "UCsomeoneelse00000000001", "Clipper", { duration: "PT40S", views: 90000 }),
     "lowviews001": vid("lowviews001", "tiny video", 6, "UCsomeoneelse00000000002", "Nobody", { views: 12 }),
+    "xaryuown1": vid("xaryuown1", "My BlizzCon Reaction and Thoughts", 6, channels.Xaryu.id, "Xaryu", { views: 80000 }),
   };
 
   const route = async (url, opts = {}) => {
@@ -137,7 +139,7 @@ function fakeWorld({ claudeFails = false } = {}) {
         return json({ items: (uploads[p.get("playlistId")] || []).map(([id, title, h]) => ({ snippet: { title, publishedAt: iso(h) }, contentDetails: { videoId: id, videoPublishedAt: iso(h) } })) });
       }
       if (u.pathname.endsWith("/search")) {
-        return json({ items: p.get("videoDuration") === "short" ? [{ id: { videoId: "short000001" } }] : [{ id: { videoId: "lowviews001" } }, { id: { videoId: "whvideo0001" } }] });
+        return json({ items: p.get("videoDuration") === "short" ? [{ id: { videoId: "short000001" } }] : [{ id: { videoId: "lowviews001" } }, { id: { videoId: "whvideo0001" } }, { id: { videoId: "xaryuown1" } }] });
       }
       if (u.pathname.endsWith("/videos")) return json({ items: p.get("id").split(",").map((id) => videos[id]).filter(Boolean) });
     }
@@ -276,6 +278,12 @@ test("end to end: collects, filters, ranks with Claude, saves", async () => {
   assert.equal(beta.discussion, "https://www.reddit.com/r/classicwow/comments/a2/y/");
   // Short detected and URL rewritten
   assert.ok(urls.includes("https://www.youtube.com/shorts/short000001"));
+  // Official upload from 48h ago (beyond the 36h creator/search lookback) still gets in, thanks to
+  // the longer officialLookbackHours window; a creator-channel upload that old would not.
+  const oldAnnounce = day.items.find((i) => i.url.includes("oldannounce1"));
+  assert.ok(oldAnnounce?.official, "48h-old official upload should still be included");
+  // Xaryu's own upload never gets suggested back to him, even when a keyword search surfaces it.
+  assert.ok(!urls.some((u) => u.includes("xaryuown1")), "should never suggest Xaryu react to his own video");
   // Low-view search result, stale news, already-listed news, low-score/stickied reddit, off-topic PC Gamer dropped
   for (const bad of ["lowviews001", "news=0/old", "news=5/listed", "/a3/", "/a4/", "pcgamer.com/deal"]) {
     assert.ok(!urls.some((u) => u.includes(bad)), `should drop ${bad}`);
@@ -312,8 +320,8 @@ test("end to end: collects, filters, ranks with Claude, saves", async () => {
   assert.equal(calls.discord.length, 1);
   assert.deepEqual(calls.discord[0].allowed_mentions, { parse: [] });
   assert.match(summary, /New series: Hardcore Moments #386/);
-  // Quota: no more than a few hundred units in this scenario (5 searches = 500)
-  assert.ok(calls.yt.filter((x) => x === "search").length <= 5);
+  // Quota: no more than a few hundred units in this scenario (6 searches = 600)
+  assert.ok(calls.yt.filter((x) => x === "search").length <= 6);
 });
 
 test("end to end: Claude outage falls back to rules", async () => {

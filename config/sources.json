@@ -3,6 +3,7 @@
 
   "timezone": "America/New_York",
   "lookbackHours": 36,
+  "officialLookbackHours": 96,
   "listSize": { "min": 14, "max": 24 },
 
   "series": [
@@ -24,6 +25,7 @@
     { "q": "WoW Forever", "maxResults": 15 },
     { "q": "classic wow hardcore", "maxResults": 15 },
     { "q": "world of warcraft classic", "maxResults": 10 },
+    { "q": "BlizzCon World of Warcraft", "maxResults": 10 },
     { "q": "wow forever #shorts", "maxResults": 10, "videoDuration": "short" },
     { "q": "wow hardcore death #shorts", "maxResults": 10, "videoDuration": "short" }
   ],
@@ -52,7 +54,8 @@
   "rankingHints": [
     "Xaryu mainly plays WoW Classic, Classic Hardcore and WoW: Forever (Blizzard's Classic+, launched Nov 4, 2026). He also does variety streams about major new game news.",
     "Official Blizzard content and Wowhead coverage beat community re-coverage of the same story.",
-    "Big drama, strong or contrarian takes, and anything featuring Xaryu or his friends make good react content.",
+    "After a major Blizzard event (BlizzCon, expansion launches, big patches), official announcement and panel videos stay top priority for several days, not just the last day or two.",
+    "Big drama, strong or contrarian takes, and anything featuring Xaryu's friends (not Xaryu himself) make good react content.",
     "Retail-only minutiae (small hotfixes, shop items) is low priority unless it is drama."
   ]
 }
