@@ -4,7 +4,9 @@
   "private": true,
   "description": "Daily react-content list for Xaryu's mods: collects from YouTube, Reddit and news feeds, ranks with Claude, publishes to a public board.",
   "type": "module",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "collect": "node collector/index.js",
     "dry-run": "node collector/index.js --dry-run",

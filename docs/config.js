@@ -1,8 +1,12 @@
-// Website settings. Both values are safe to publish: the publishable key can only read,
-// and every change goes through the mod password checked inside the database.
-// Find them in Supabase → Project Settings → API Keys (use the "Publishable" key, never the secret one).
+// Website settings. All of these are safe to publish: reads go straight to Firestore's public REST
+// API (locked down by firestore/firestore.rules, not a secret key), and mod writes require signing
+// into the shared Firebase Authentication account below — the Web API key only identifies the
+// project, it isn't a secret (Firebase's own docs say so; real access control lives in the rules).
 window.RQ_CONFIG = {
-  supabaseUrl: "https://YOUR-PROJECT-REF.supabase.co",
-  supabaseKey: "sb_publishable_REPLACE_ME",
+  firestoreProjectId: "reacts-queue",
+  firebaseApiKey: "AIzaSyDCb0rcS8wCPWsGedK94G1PjpyBdAr98Rw",
+  // Must exactly match the Email/Password user you create in Firebase Console → Authentication →
+  // Users. It doesn't need to be a real inbox — mods never see or type this, only the password.
+  modEmail: "mods@reacts-queue.local",
   refreshSeconds: 30,
 };

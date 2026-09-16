@@ -12,7 +12,7 @@ if npm test >/dev/null 2>&1; then ok "Tests pass"; else todo "Tests fail — run
 
 echo "Website config (docs/config.js)"
 if grep -qE 'YOUR-PROJECT|REPLACE_ME' docs/config.js; then todo "Still has placeholder values"; else ok "Filled in"; fi
-if grep -q 'sb_secret_' docs/config.js; then todo "DANGER: a SECRET key is in docs/config.js — replace it with the publishable key"; fi
+if grep -qE '"private_key"|BEGIN PRIVATE KEY' docs/config.js; then todo "DANGER: a service-account key is in docs/config.js — that file is public, remove it"; fi
 
 echo "GitHub"
 if ! gh auth status >/dev/null 2>&1; then todo "Not signed in — run: gh auth login"; exit 0; fi
@@ -20,7 +20,7 @@ REPO="$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)
 if [ -z "$REPO" ]; then todo "No GitHub repo linked to this folder yet"; exit 0; fi
 ok "Repo: $REPO ($(gh repo view --json visibility -q .visibility))"
 SECRETS="$(gh secret list --repo "$REPO" 2>/dev/null | awk '{print $1}')"
-for s in SUPABASE_URL SUPABASE_SECRET_KEY YOUTUBE_API_KEY ANTHROPIC_API_KEY; do
+for s in FIRESTORE_SERVICE_ACCOUNT YOUTUBE_API_KEY ANTHROPIC_API_KEY; do
   echo "$SECRETS" | grep -qx "$s" && ok "Secret $s" || todo "Secret $s missing — run scripts/set-secrets.sh in your own terminal"
 done
 for s in DISCORD_WEBHOOK_URL REDDIT_CLIENT_ID; do

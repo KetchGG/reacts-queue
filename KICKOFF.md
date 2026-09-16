@@ -40,15 +40,17 @@ Then paste this:
 > Then walk me through first-time setup one step at a time, doing everything you can yourself and pausing when I need to do something in a browser:
 >
 > 1. Create a **public** GitHub repo named `xaryu-react-queue` from this folder with `gh repo create xaryu-react-queue --public --source . --push`. Do the initial git commit first.
-> 2. Tell me exactly what to click in Supabase to create the project and run `supabase/schema.sql`, and remind me to set the mod password myself in the SQL editor. Don't ask me for the password.
-> 3. Walk me through getting the YouTube Data API key and the Anthropic API key.
-> 4. Tell me to run `bash scripts/set-secrets.sh` **in a separate terminal window** to store the keys. Never ask me to paste keys into this chat.
-> 5. Ask me for the Supabase **project URL and publishable key** (both are public), put them in `docs/config.js`, commit and push.
-> 6. Turn on GitHub Pages from `main` / `/docs` using `gh api`, and give me the site URL. Then save it as the `SITE_URL` variable with `gh variable set`.
-> 7. Start the first run with `gh workflow run daily.yml`, watch it with `gh run watch`, and show me the run summary. Fix anything that fails, running `npm test` after every change.
-> 8. When the site shows today's list, run `bash scripts/check-setup.sh` again and give me a short message I can send to the other mods (site link + how to sign in; I'll give them the password myself).
+> 2. Tell me exactly what to click to create a Firebase project, enable Firestore in **Production mode**, and publish `firestore/firestore.rules`.
+> 3. Tell me how to enable Firebase Authentication (Email/Password) and add one shared mod user (email `mods@reacts-queue.local`, matching `docs/config.js`'s `modEmail`). Don't ask me for the password — I'll set it myself in the console.
+> 4. Tell me how to download a service-account key (Project settings → Service accounts → Generate new private key) and find the Web API key and Project ID (Project settings → General).
+> 5. Walk me through getting the YouTube Data API key and the Anthropic API key.
+> 6. Tell me to run `bash scripts/set-secrets.sh` **in a separate terminal window** to store the keys and the downloaded service-account file. Never ask me to paste keys or the file's contents into this chat.
+> 7. Put my Firebase project id and Web API key into `docs/config.js`, commit and push.
+> 8. Turn on GitHub Pages from `main` / `/docs` using `gh api`, and give me the site URL. Save it as the `SITE_URL` variable with `gh variable set`.
+> 9. Start the first run with `gh workflow run daily.yml`, watch it with `gh run watch`, and show me the run summary. Fix anything that fails, running `npm test` after every change.
+> 10. When the site shows today's list, run `bash scripts/check-setup.sh` again and give me a short message I can send to the other mods (site link + how to sign in; I'll give them the password myself).
 >
-> Keep your explanations short. I'm comfortable with a terminal but new to Supabase and GitHub Actions.
+> Keep your explanations short. I'm comfortable with a terminal but new to Firebase and GitHub Actions.
 
 ---
 

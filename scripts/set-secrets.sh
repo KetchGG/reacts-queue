@@ -40,8 +40,17 @@ ask_var() {
   fi
 }
 
-ask_secret SUPABASE_URL          "Supabase Project URL (https://….supabase.co)"
-ask_secret SUPABASE_SECRET_KEY   "Supabase SECRET key (sb_secret_…)"
+# The Firestore service-account key is a whole multi-line JSON file, not a single value —
+# read a file path instead of hidden inline input, then upload the file's contents directly.
+ask_secret_file() {
+  local name="$1" label="$2" path
+  read -r -p "$label: " path
+  if [ -z "$path" ]; then echo "  – $name skipped"; return; fi
+  if [ ! -f "$path" ]; then echo "  ✗ No file at $path — run this again once you have it."; return; fi
+  gh secret set "$name" --repo "$REPO" < "$path" >/dev/null && echo "  ✓ $name saved (from $path)"
+}
+
+ask_secret_file FIRESTORE_SERVICE_ACCOUNT "Path to the downloaded Firestore service-account JSON key"
 ask_secret YOUTUBE_API_KEY       "YouTube Data API key"
 ask_secret ANTHROPIC_API_KEY     "Anthropic API key (sk-ant-…)"
 ask_secret DISCORD_WEBHOOK_URL   "Discord webhook URL (optional)"

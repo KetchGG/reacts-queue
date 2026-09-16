@@ -1,53 +1,54 @@
-// Supabase REST (PostgREST) access with the project's secret key. Bypasses row-level security, so it stays server-side.
-import { http } from "./util.js";
+// Firestore access using the project's service-account credentials. This goes through IAM, not
+// Firestore Security Rules (those only gate the browser's unauthenticated reads), so it stays server-side.
+import { createFirestoreClient } from "./firestore.js";
 
-export function createStore({ url, key }) {
-  const base = url.replace(/\/+$/, "") + "/rest/v1";
-  const headers = { apikey: key, "Content-Type": "application/json" };
-  // Legacy JWT keys (eyJ…) also need the Authorization header; new sb_secret_ keys must not use it.
-  if (key.startsWith("eyJ")) headers.Authorization = `Bearer ${key}`;
-
-  const get = (path) => http(`${base}/${path}`, { headers });
-  const upsert = (table, rows, onConflict) =>
-    http(`${base}/${table}${onConflict ? `?on_conflict=${onConflict}` : ""}`, {
-      method: "POST",
-      headers: { ...headers, Prefer: "resolution=merge-duplicates,return=minimal" },
-      body: JSON.stringify(rows),
-    });
-  const del = (path) => http(`${base}/${path}`, { method: "DELETE", headers: { ...headers, Prefer: "return=minimal" } });
+export function createStore({ serviceAccountJson }) {
+  const fs = createFirestoreClient({ serviceAccountJson });
+  const parseJson = (s, fallback) => { try { return s ? JSON.parse(s) : fallback; } catch { return fallback; } };
 
   return {
     async recentDays(limit = 7) {
-      return (await get(`days?select=date,items&order=date.desc&limit=${limit}`)) || [];
+      const docs = await fs.listDocs("days", { orderBy: "__name__", direction: "desc", limit });
+      return docs.map((d) => ({ date: d.date, items: parseJson(d.items, []) }));
     },
     async day(date) {
-      return ((await get(`days?select=*&date=eq.${date}`)) || [])[0] || null;
+      const d = await fs.getDoc(`days/${date}`);
+      if (!d) return null;
+      return { date: d.date, headline: d.headline || "", coverage: d.coverage || "", generated_at: d.generated_at, items: parseJson(d.items, []) };
     },
     async marksSince(date) {
-      return (await get(`marks?select=date,item_id,state&date=gte.${date}`)) || [];
+      const docs = await fs.whereQuery("marks", "date", "GREATER_THAN_OR_EQUAL", date);
+      return docs.map((d) => ({ date: d.date, item_id: d.item_id, state: d.state || "" }));
     },
     async extrasSince(date) {
-      return (await get(`extras?select=date,url,title,note,removed&date=gte.${date}`)) || [];
+      const docs = await fs.whereQuery("extras", "date", "GREATER_THAN_OR_EQUAL", date);
+      return docs.map((d) => ({ date: d.date, url: d.url, title: d.title || "", note: d.note || "", removed: !!d.removed }));
     },
     async setting(key) {
-      return ((await get(`settings?select=value&key=eq.${encodeURIComponent(key)}`)) || [])[0]?.value ?? null;
+      const d = await fs.getDoc(`settings/${encodeURIComponent(key)}`);
+      return d ? parseJson(d.value, null) : null;
     },
     async putSetting(key, value) {
-      await upsert("settings", [{ key, value, updated_at: new Date().toISOString() }], "key");
+      await fs.patchDoc(`settings/${encodeURIComponent(key)}`, { value: JSON.stringify(value), updated_at: new Date().toISOString() });
     },
     async state(key, fallback = {}) {
-      return ((await get(`app_state?select=value&key=eq.${encodeURIComponent(key)}`)) || [])[0]?.value ?? fallback;
+      const d = await fs.getDoc(`app_state/${encodeURIComponent(key)}`);
+      return d ? parseJson(d.value, fallback) : fallback;
     },
     async putState(key, value) {
-      await upsert("app_state", [{ key, value, updated_at: new Date().toISOString() }], "key");
+      await fs.patchDoc(`app_state/${encodeURIComponent(key)}`, { value: JSON.stringify(value), updated_at: new Date().toISOString() });
     },
     async putDay(day) {
-      await upsert("days", [day], "date");
+      await fs.patchDoc(`days/${day.date}`, {
+        date: day.date, headline: day.headline || "", coverage: day.coverage || "",
+        generated_at: day.generated_at, items: JSON.stringify(day.items || []),
+      });
     },
     async pruneBefore(date) {
-      await del(`days?date=lt.${date}`);
-      await del(`marks?date=lt.${date}`);
-      await del(`extras?date=lt.${date}`);
+      for (const collection of ["days", "marks", "extras"]) {
+        const docs = await fs.whereQuery(collection, "date", "LESS_THAN", date);
+        await fs.batchDelete(docs.map((d) => `${collection}/${d.__id}`));
+      }
     },
   };
 }

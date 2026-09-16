@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Daily collector for the Xaryu React Queue.
-//   node collector/index.js              collect, rank, save to Supabase, post summary
+//   node collector/index.js              collect, rank, save to Firestore, post summary
 //   node collector/index.js --dry-run    collect and rank, but only write out/preview.json
 //   node collector/index.js --no-claude  use the rules ranker even if ANTHROPIC_API_KEY is set
 import { readFile, writeFile, mkdir, appendFile } from "node:fs/promises";
@@ -29,8 +29,8 @@ export async function run({ now = new Date(), dry = DRY, noClaude = args.has("--
   const note = (where, err) => { problems.push(`${where}: ${err.message || err}`); warn(where, err.message || err); };
 
   // ------------------------------------------------------------------ context from the database
-  const store = env.SUPABASE_URL && env.SUPABASE_SECRET_KEY ? createStore({ url: env.SUPABASE_URL, key: env.SUPABASE_SECRET_KEY }) : null;
-  if (!store && !dry) throw new Error("SUPABASE_URL and SUPABASE_SECRET_KEY are required (or use --dry-run)");
+  const store = env.FIRESTORE_SERVICE_ACCOUNT ? createStore({ serviceAccountJson: env.FIRESTORE_SERVICE_ACCOUNT }) : null;
+  if (!store && !dry) throw new Error("FIRESTORE_SERVICE_ACCOUNT is required (or use --dry-run)");
 
   const weekAgo = addDays(today, -7);
   const [notesVal, recentDays, marks, extras, stateVal, existingToday] = store

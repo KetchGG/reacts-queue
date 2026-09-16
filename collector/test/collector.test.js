@@ -2,6 +2,7 @@
 //   npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { generateKeyPairSync } from "node:crypto";
 import { setFetch, isoDurationToSec, canonicalUrl, youtubeId, ymdIn, monDayIn, stripTags } from "../lib/util.js";
 import { parseFeed, parseBlizzardNews } from "../lib/feeds.js";
 import { isShort } from "../lib/youtube.js";
@@ -9,6 +10,21 @@ import { guessCat, sanitizeList, rulesRank } from "../lib/rank.js";
 
 const NOW = new Date("2026-09-17T13:00:00Z"); // 9 AM ET
 const iso = (hoursAgo) => new Date(NOW - hoursAgo * 3600e3).toISOString();
+
+// A syntactically-real (but throwaway) RSA key so firestore.js's RS256 JWT signing succeeds —
+// the fake oauth2 endpoint below never verifies the signature, it just needs the sign() call to work.
+const TEST_PROJECT = "test-project";
+const { privateKey: TEST_PRIVATE_KEY } = generateKeyPairSync("rsa", {
+  modulusLength: 2048,
+  privateKeyEncoding: { type: "pkcs8", format: "pem" },
+  publicKeyEncoding: { type: "spki", format: "pem" },
+});
+const FIRESTORE_SERVICE_ACCOUNT = JSON.stringify({
+  project_id: TEST_PROJECT, client_email: "test@test.iam.gserviceaccount.com", private_key: TEST_PRIVATE_KEY,
+});
+const DOCS_ROOT = `https://firestore.googleapis.com/v1/projects/${TEST_PROJECT}/databases/(default)/documents`;
+const wrapFields = (obj) => Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, typeof v === "boolean" ? { booleanValue: v } : { stringValue: String(v) }]));
+const fakeDoc = (collection, id, fields) => ({ name: `${DOCS_ROOT}/${collection}/${id}`, fields: wrapFields(fields) });
 
 test("helpers", () => {
   assert.equal(isoDurationToSec("PT1H2M3S"), 3723);
@@ -161,18 +177,62 @@ function fakeWorld({ claudeFails = false } = {}) {
         items: refs.filter((r) => r !== "c1").map((ref, i) => ({ ref, tier: i === 0 ? "epic" : "rare", cat: "forever", why: `because ${ref}` })),
       } }], usage: { input_tokens: 1000, output_tokens: 200 } });
     }
-    if (u.hostname === "db.example.supabase.co") {
-      const tbl = u.pathname.split("/").pop();
-      if ((opts.method || "GET") === "GET") {
-        if (tbl === "settings") return json([{ value: { text: "more hardcore please" } }]);
-        if (tbl === "days" && u.searchParams.get("order")) return json([{ date: "2026-09-16", items: [{ id: "260916-01", url: "https://www.wowhead.com/news=5/listed", title: "Skyborne drama" }] }]);
-        if (tbl === "days") return json([]);
-        if (tbl === "marks") return json([{ date: "2026-09-16", item_id: "260916-01", state: "watched" }]);
-        if (tbl === "extras") return json([{ date: "2026-09-16", url: "https://www.reddit.com/r/classicwow/comments/zz/mod/", title: "mod pick", removed: false }]);
-        if (tbl === "app_state") return json([{ value: { seenNews: { "World of Warcraft": ["24304071"] }, seriesListed: { "Hardcore Moments": ["hcm384"] } } }]);
+    if (u.hostname === "oauth2.googleapis.com" && u.pathname === "/token") {
+      return json({ access_token: "test-access-token", expires_in: 3600, token_type: "Bearer" });
+    }
+    if (u.hostname === "firestore.googleapis.com") {
+      const firestoreDocs = {
+        days: [
+          fakeDoc("days", "2026-09-16", {
+            date: "2026-09-16", headline: "", coverage: "", generated_at: iso(24),
+            items: JSON.stringify([{ id: "260916-01", url: "https://www.wowhead.com/news=5/listed", title: "Skyborne drama" }]),
+          }),
+        ],
+        marks: [
+          fakeDoc("marks", "2026-09-16_260916-01", { date: "2026-09-16", item_id: "260916-01", state: "watched", by_name: "" }),
+          fakeDoc("marks", "2026-01-01_oldmark01", { date: "2026-01-01", item_id: "oldmark01", state: "" }),
+        ],
+        extras: [
+          fakeDoc("extras", "extra1", { date: "2026-09-16", url: "https://www.reddit.com/r/classicwow/comments/zz/mod/", title: "mod pick", note: "", cat: "other", by_name: "", added_at: iso(24), removed: false }),
+        ],
+        settings: [fakeDoc("settings", "notes", { value: JSON.stringify({ text: "more hardcore please" }) })],
+        app_state: [fakeDoc("app_state", "collector", { value: JSON.stringify({ seenNews: { "World of Warcraft": ["24304071"] }, seriesListed: { "Hardcore Moments": ["hcm384"] } }) })],
+      };
+      const prefix = `/v1/projects/${TEST_PROJECT}/databases/(default)/documents`;
+      if (!u.pathname.startsWith(prefix)) throw new Error("unrouted firestore " + url);
+      const rest = u.pathname.slice(prefix.length);
+      if (rest === ":runQuery") {
+        const { from, where } = JSON.parse(opts.body).structuredQuery;
+        const collection = from[0].collectionId;
+        const { field, op, value } = where.fieldFilter;
+        const cmp = (a, b) => (op === "GREATER_THAN_OR_EQUAL" ? a >= b : op === "LESS_THAN" ? a < b : true);
+        const matches = (firestoreDocs[collection] || []).filter((d) => cmp(d.fields[field.fieldPath].stringValue, value.stringValue));
+        return json(matches.map((document) => ({ document })));
       }
-      calls.writes.push({ method: opts.method, tbl, query: u.search, body: opts.body ? JSON.parse(opts.body) : null, headers: opts.headers });
-      return new Response(null, { status: 201 });
+      if (rest === ":batchWrite") {
+        const paths = JSON.parse(opts.body).writes.map((w) => w.delete);
+        calls.writes.push({ method: "BATCH_DELETE", paths, headers: opts.headers });
+        return json({ writeResults: paths.map(() => ({})) });
+      }
+      const segs = rest.replace(/^\//, "").split("/");
+      const collection = segs[0];
+      if (segs.length === 1) {
+        const list = [...(firestoreDocs[collection] || [])].sort((a, b) => b.name.localeCompare(a.name));
+        const limit = Number(u.searchParams.get("pageSize") || list.length);
+        return json({ documents: list.slice(0, limit) });
+      }
+      const id = decodeURIComponent(segs[1]);
+      if ((opts.method || "GET") === "GET") {
+        const doc = (firestoreDocs[collection] || []).find((d) => d.name.endsWith(`/${collection}/${id}`));
+        return doc ? json(doc) : json({ error: { code: 404, message: "not found" } }, 404);
+      }
+      if (opts.method === "PATCH") {
+        const body = JSON.parse(opts.body);
+        const fields = Object.fromEntries(Object.entries(body.fields).map(([k, v]) => [k, "stringValue" in v ? v.stringValue : v.booleanValue]));
+        calls.writes.push({ method: "PATCH", collection, id, fields, headers: opts.headers });
+        return json({ name: `${DOCS_ROOT}/${collection}/${id}`, fields: body.fields });
+      }
+      throw new Error("unrouted firestore " + url);
     }
     if (u.hostname === "discord.com") { calls.discord.push(JSON.parse(opts.body)); return new Response(null, { status: 204 }); }
     throw new Error("unrouted " + url);
@@ -186,7 +246,7 @@ async function runWith(envOverrides, worldOpts) {
   const saved = { ...process.env };
   Object.assign(process.env, {
     YOUTUBE_API_KEY: "yt", REDDIT_CLIENT_ID: "id", REDDIT_CLIENT_SECRET: "sec", ANTHROPIC_API_KEY: "ak",
-    SUPABASE_URL: "https://db.example.supabase.co", SUPABASE_SECRET_KEY: "sb_secret_test",
+    FIRESTORE_SERVICE_ACCOUNT: FIRESTORE_SERVICE_ACCOUNT,
     DISCORD_WEBHOOK_URL: "https://discord.com/api/webhooks/1/x", SITE_URL: "https://example.github.io/q/",
     GITHUB_STEP_SUMMARY: "",
   }, envOverrides);
@@ -235,14 +295,14 @@ test("end to end: collects, filters, ranks with Claude, saves", async () => {
   assert.equal(new Set(day.items.map((i) => i.id)).size, day.items.length);
   assert.equal(day.headline, "Forever beta is live.");
   // Writes: day, state (series tracker updated), sources, prune
-  const dayWrite = calls.writes.find((w) => w.tbl === "days" && w.method === "POST");
-  assert.equal(dayWrite.body[0].date, "2026-09-17");
-  assert.equal(dayWrite.headers.apikey, "sb_secret_test");
-  assert.equal(dayWrite.headers.Authorization, undefined);
-  const stateWrite = calls.writes.find((w) => w.tbl === "app_state");
-  assert.deepEqual(stateWrite.body[0].value.seriesListed["Hardcore Moments"].slice(0, 2), ["hcm386", "hcm384"]);
-  assert.ok(stateWrite.body[0].value.seenNews["World of Warcraft"].includes("24309999"));
-  assert.ok(calls.writes.some((w) => w.method === "DELETE" && w.tbl === "marks" && w.query.includes("lt.2026-07-19")));
+  const dayWrite = calls.writes.find((w) => w.collection === "days" && w.method === "PATCH");
+  assert.equal(dayWrite.fields.date, "2026-09-17");
+  assert.equal(dayWrite.headers.Authorization, "Bearer test-access-token");
+  const stateWrite = calls.writes.find((w) => w.collection === "app_state" && w.method === "PATCH");
+  const stateValue = JSON.parse(stateWrite.fields.value);
+  assert.deepEqual(stateValue.seriesListed["Hardcore Moments"].slice(0, 2), ["hcm386", "hcm384"]);
+  assert.ok(stateValue.seenNews["World of Warcraft"].includes("24309999"));
+  assert.ok(calls.writes.some((w) => w.method === "BATCH_DELETE" && w.paths.some((p) => p.includes("marks/2026-01-01_oldmark01"))));
   // Massively OP outage is reported, not fatal
   assert.ok(problems.some((p) => p.includes("Massively OP")));
   // Summary posted to Discord without pinging anyone

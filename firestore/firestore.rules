@@ -1,0 +1,55 @@
+// Paste this whole file into Firebase Console → Firestore Database → Rules → publish.
+//
+// Who can do what:
+//   * Anyone with the website link can READ days/marks/extras, and the two public settings docs.
+//   * Mod writes require being signed in (request.auth != null) — the website signs mods into one
+//     shared Firebase Authentication account (Email/Password) using the mod password; there's no
+//     separate backend, and no password of any kind is ever stored in Firestore itself. Firebase
+//     Auth handles the password hashing and brute-force throttling for us.
+//   * The collector (GitHub Action) writes `days`/`app_state`/`settings.sources` using its own
+//     service-account credentials — that's IAM auth, not covered by these rules at all, so it
+//     works regardless of what's written below.
+//   * app_state/* has no match block, so the browser can't read or write it either (default-deny).
+//
+// IMPORTANT: when you create the Firestore database, choose "Production mode", not "Test mode" —
+// Test mode defaults to `allow read, write: if true` for 30 days, which would leave everything
+// open. Paste these rules in immediately after creating the database.
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /days/{date} {
+      allow read: if true;
+      // Written only by the collector's service account (IAM, bypasses these rules).
+    }
+
+    match /marks/{markId} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.resource.data.state in ['', 'queued', 'watched', 'skip']
+        && request.resource.data.by_name is string
+        && request.resource.data.by_name.size() <= 40;
+    }
+
+    match /extras/{extraId} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.url.matches('^https?://.*')
+        && request.resource.data.url.size() <= 2000
+        && request.resource.data.title.size() <= 200
+        && request.resource.data.note.size() <= 300
+        && request.resource.data.by_name.size() <= 40
+        && request.resource.data.removed == false;
+      // Mods can only ever flip `removed` to true on an existing pick, never edit the rest.
+      allow update: if request.auth != null
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['removed'])
+        && request.resource.data.removed == true;
+    }
+
+    match /settings/{key} {
+      allow read: if key in ['notes', 'sources'];
+      // Mods can only edit the notes doc; `sources` is collector-only (service account, IAM).
+      allow write: if request.auth != null && key == 'notes' && request.resource.data.value is string;
+    }
+  }
+}

@@ -267,34 +267,104 @@ const SECTIONS = [["series","Series","New episodes","cards"],["epic","Epic","Rea
 const KIND = {video:"Video",short:"Short",article:"Article",post:"Thread",link:"Link"};
 const $ = (id) => document.getElementById(id);
 
-// ------------------------------------------------------------------ Supabase REST (no library needed)
-const API = String(CFG.supabaseUrl || "").replace(/\/+$/, "") + "/rest/v1";
-const HDR = {apikey: CFG.supabaseKey || "", "Content-Type": "application/json"};
-if (String(CFG.supabaseKey || "").startsWith("eyJ")) HDR.Authorization = "Bearer " + CFG.supabaseKey;
-async function q(path) {
-  const r = await fetch(`${API}/${path}`, {headers: HDR, cache: "no-store"});
-  if (!r.ok) throw new Error(`Couldn't load data (${r.status})`);
-  return r.json();
+// ------------------------------------------------------------------ Firestore REST (public reads, no library needed)
+// Unauthenticated requests are gated by firestore/firestore.rules, the same way Supabase's row-level
+// security used to gate public SELECTs — no key belongs in this file for reads.
+const FS_ROOT = `https://firestore.googleapis.com/v1/projects/${CFG.firestoreProjectId}/databases/(default)/documents`;
+function fsVal(v) {
+  if (!v || "nullValue" in v) return null;
+  if ("booleanValue" in v) return v.booleanValue;
+  if ("stringValue" in v) return v.stringValue;
+  return null;
 }
-async function rpc(fn, body) {
-  const r = await fetch(`${API}/rpc/${fn}`, {method: "POST", headers: HDR, body: JSON.stringify(body)});
+function fsDoc(doc) {
+  if (!doc?.name) return null;
+  const out = {id: doc.name.split("/").pop()};
+  for (const [k, v] of Object.entries(doc.fields || {})) out[k] = fsVal(v);
+  return out;
+}
+async function fsGet(path) {
+  const r = await fetch(`${FS_ROOT}/${path}`, {cache: "no-store"});
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(`Couldn't load data (${r.status})`);
+  return fsDoc(await r.json());
+}
+async function fsList(collection, {orderBy = "__name__", direction = "desc", limit = 20} = {}) {
+  const qs = new URLSearchParams({orderBy: `${orderBy} ${direction}`, pageSize: String(limit)});
+  const r = await fetch(`${FS_ROOT}/${collection}?${qs}`, {cache: "no-store"});
+  if (!r.ok) throw new Error(`Couldn't load data (${r.status})`);
+  return ((await r.json()).documents || []).map(fsDoc);
+}
+async function fsQuery(collection, fieldPath, op, value) {
+  const structuredQuery = {from: [{collectionId: collection}], where: {fieldFilter: {field: {fieldPath}, op, value: {stringValue: value}}}};
+  const r = await fetch(`${FS_ROOT}:runQuery`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({structuredQuery})});
+  if (!r.ok) throw new Error(`Couldn't load data (${r.status})`);
+  return ((await r.json()) || []).filter((x) => x.document).map((x) => fsDoc(x.document));
+}
+
+// ------------------------------------------------------------------ Firebase Auth (shared mod sign-in, no backend)
+// All mods sign into the same Email/Password account; the site only ever asks them for a name and
+// the shared password. Writes then carry a Firebase ID token, and firestore.rules checks
+// `request.auth != null` — Firebase Auth itself handles password storage and guess-throttling.
+const MOD_EMAIL = CFG.modEmail || "mods@reacts-queue.local";
+async function identityToolkit(method, body) {
+  const r = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:${method}?key=${CFG.firebaseApiKey}`, {
+    method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(j?.error?.message || "Request failed"), {auth: true});
+  return j;
+}
+async function signIn(pass) {
+  const r = await identityToolkit("signInWithPassword", {email: MOD_EMAIL, password: pass, returnSecureToken: true});
+  authToken = {idToken: r.idToken, refreshToken: r.refreshToken, expiresAt: Date.now() + Number(r.expiresIn) * 1000};
+  store("rq-auth", authToken);
+}
+async function refreshIdToken() {
+  const r = await fetch(`https://securetoken.googleapis.com/v1/token?key=${CFG.firebaseApiKey}`, {
+    method: "POST", headers: {"Content-Type": "application/x-www-form-urlencoded"},
+    body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(authToken.refreshToken)}`,
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error("Session expired"), {auth: true});
+  authToken = {idToken: j.id_token, refreshToken: j.refresh_token, expiresAt: Date.now() + Number(j.expires_in) * 1000};
+  store("rq-auth", authToken);
+}
+async function ensureToken() {
+  if (!authToken) throw Object.assign(new Error("Not signed in"), {auth: true});
+  if (Date.now() > authToken.expiresAt - 60000) await refreshIdToken();
+  return authToken.idToken;
+}
+
+// ------------------------------------------------------------------ Firestore writes (rules-gated, no backend)
+function fsToValue(v) {
+  if (v === null || v === undefined) return {nullValue: null};
+  if (typeof v === "boolean") return {booleanValue: v};
+  return {stringValue: String(v)};
+}
+async function fsWrite(path, fields) {
+  const tk = await ensureToken();
+  const mask = Object.keys(fields).map((f) => `updateMask.fieldPaths=${encodeURIComponent(f)}`).join("&");
+  const r = await fetch(`${FS_ROOT}/${path}?${mask}`, {
+    method: "PATCH", headers: {"Content-Type": "application/json", Authorization: `Bearer ${tk}`},
+    body: JSON.stringify({fields: Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, fsToValue(v)]))}),
+  });
   if (!r.ok) {
     let msg = `Request failed (${r.status})`;
-    try { const j = await r.json(); msg = j.message || msg; } catch {}
-    const e = new Error(msg); e.auth = /password/i.test(msg); throw e;
+    try { const j = await r.json(); msg = j?.error?.message || msg; } catch {}
+    throw Object.assign(new Error(msg), {auth: r.status === 401 || r.status === 403});
   }
-  const t = await r.text();
-  return t ? JSON.parse(t) : null;
 }
 
 // ------------------------------------------------------------------ state
 let dates = [], sel = null, day = null, marks = {}, extras = [], cat = "all";
 let mod = loadMod();
+let authToken = load("rq-auth", null);
 const pending = new Map(); // item_id → state set locally but not yet confirmed
 
 function store(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch {} }
 function load(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } }
-function loadMod() { const m = load("rq-mod", null); return m && m.pass ? m : null; }
+function loadMod() { const m = load("rq-mod", null); return m && m.name ? m : null; }
 $("hideDone").checked = !!load("rq-hide", false);
 $("addCat").innerHTML = Object.entries(CATS).map(([k, l]) => `<option value="${k}"${k === "classic" ? " selected" : ""}>${l}</option>`).join("");
 
@@ -454,31 +524,31 @@ function render() {
 
 // ------------------------------------------------------------------ data loading
 async function loadDates() {
-  const rows = await q("days?select=date&order=date.desc&limit=30");
+  const rows = await fsList("days", {orderBy: "__name__", direction: "desc", limit: 30});
   dates = rows.map((r) => r.date);
   if (!sel || !dates.includes(sel)) sel = dates[0] || null;
 }
 async function loadDay() {
   if (!sel) { day = null; return; }
   const [d, m, x] = await Promise.all([
-    q(`days?select=*&date=eq.${sel}`),
-    q(`marks?select=item_id,state,by_name&date=eq.${sel}`),
-    q(`extras?select=*&date=eq.${sel}&order=added_at.asc`),
+    fsGet(`days/${sel}`),
+    fsQuery("marks", "date", "EQUAL", sel),
+    fsQuery("extras", "date", "EQUAL", sel),
   ]);
-  day = d[0] || null;
-  marks = Object.fromEntries(m.map((r) => [r.item_id, r]));
+  day = d ? {...d, items: d.items ? JSON.parse(d.items) : []} : null;
+  marks = Object.fromEntries(m.map((r) => [r.item_id, {item_id: r.item_id, state: r.state || "", by_name: r.by_name || ""}]));
   for (const [id, s] of pending) if ((marks[id]?.state || "") === s) pending.delete(id);
-  extras = x;
+  extras = x.map((r) => ({...r, removed: !!r.removed})).sort((a, b) => (a.added_at || "").localeCompare(b.added_at || ""));
 }
 async function loadSettings() {
-  const rows = await q("settings?select=key,value,updated_at&key=in.(notes,sources)");
-  const by = Object.fromEntries(rows.map((r) => [r.key, r]));
+  const [notesDoc, sourcesDoc] = await Promise.all([fsGet("settings/notes"), fsGet("settings/sources")]);
+  const notesVal = notesDoc?.value ? JSON.parse(notesDoc.value) : null;
   if (document.activeElement !== $("notes")) {
-    $("notes").value = by.notes?.value?.text || "";
-    $("notesSaved").textContent = by.notes?.updated_at && by.notes.value?.text
-      ? `Last edited ${new Date(by.notes.updated_at).toLocaleString()}${by.notes.value.by ? " by " + by.notes.value.by : ""}` : "";
+    $("notes").value = notesVal?.text || "";
+    $("notesSaved").textContent = notesDoc?.updated_at && notesVal?.text
+      ? `Last edited ${new Date(notesDoc.updated_at).toLocaleString()}${notesVal.by ? " by " + notesVal.by : ""}` : "";
   }
-  const src = by.sources?.value;
+  const src = sourcesDoc?.value ? JSON.parse(sourcesDoc.value) : null;
   $("sources").innerHTML = src?.groups?.length
     ? src.groups.map((gr) => `<li><span class="k">${esc(gr.label)}</span>${esc((gr.entries || []).join(", "))}</li>`).join("")
     : "<li>Appears after the first daily run.</li>";
@@ -504,14 +574,14 @@ async function refresh({quiet = false} = {}) {
 
 // ------------------------------------------------------------------ mod actions
 function authFail(e) {
-  if (e.auth) { mod = null; store("rq-mod", null); renderChrome(); render(); toast("The mod password changed. Sign in again."); return true; }
+  if (e.auth) { mod = null; authToken = null; store("rq-mod", null); store("rq-auth", null); renderChrome(); render(); toast("Your session ended. Sign in again."); return true; }
   return false;
 }
 async function setMark(id, state) {
   const next = stateOf(id) === state ? "" : state;
   pending.set(id, next); render();
   try {
-    await rpc("set_mark", {p_pass: mod.pass, p_date: sel, p_item: id, p_state: next, p_by: mod.name});
+    await fsWrite(`marks/${sel}_${id}`, {date: sel, item_id: id, state: next, by_name: mod.name, updated_at: new Date().toISOString()});
     marks[id] = {item_id: id, state: next, by_name: mod.name};
     pending.delete(id); render();
   } catch (e) {
@@ -525,14 +595,18 @@ async function addLink(ev) {
   if (!safeUrl(url)) return toast("Paste the full link, starting with https://");
   if (allItems().some((i) => i.url === url || i.link === url)) return toast("That link is already on this day's list.");
   try {
-    await rpc("add_extra", {p_pass: mod.pass, p_date: sel, p_url: url, p_title: $("addTitle").value.trim(), p_note: $("addNote").value.trim(), p_cat: $("addCat").value, p_by: mod.name});
+    const id = crypto.randomUUID();
+    await fsWrite(`extras/${id}`, {
+      date: sel, url, title: $("addTitle").value.trim(), note: $("addNote").value.trim(),
+      cat: $("addCat").value, by_name: mod.name, added_at: new Date().toISOString(), removed: false,
+    });
     $("addUrl").value = ""; $("addTitle").value = ""; $("addNote").value = "";
     toast("Added to Mod picks");
     await loadDay(); render();
   } catch (e) { if (!authFail(e)) toast(`Couldn't add: ${e.message}`); }
 }
 async function removeLink(id) {
-  try { await rpc("remove_extra", {p_pass: mod.pass, p_id: id}); await loadDay(); render(); }
+  try { await fsWrite(`extras/${id}`, {removed: true}); await loadDay(); render(); }
   catch (e) { if (!authFail(e)) toast(`Couldn't remove: ${e.message}`); }
 }
 let notesTimer;
@@ -541,8 +615,10 @@ function queueNotes() {
   $("notesSaved").textContent = "Editing…";
   clearTimeout(notesTimer);
   notesTimer = setTimeout(async () => {
-    try { await rpc("set_notes", {p_pass: mod.pass, p_text: $("notes").value, p_by: mod.name}); $("notesSaved").textContent = "Saved · the next run will read this"; }
-    catch (e) { if (!authFail(e)) $("notesSaved").textContent = `Couldn't save: ${e.message}`; }
+    try {
+      await fsWrite("settings/notes", {value: JSON.stringify({text: $("notes").value, by: mod.name}), updated_at: new Date().toISOString()});
+      $("notesSaved").textContent = "Saved · the next run will read this";
+    } catch (e) { if (!authFail(e)) $("notesSaved").textContent = `Couldn't save: ${e.message}`; }
   }, 900);
 }
 async function copyQueue() {
@@ -566,7 +642,7 @@ $("copyQ").addEventListener("click", copyQueue);
 $("notes").addEventListener("input", queueNotes);
 $("addForm").addEventListener("submit", addLink);
 $("modBtn").addEventListener("click", () => {
-  if (mod) { mod = null; store("rq-mod", null); renderChrome(); render(); return; }
+  if (mod) { mod = null; authToken = null; store("rq-mod", null); store("rq-auth", null); renderChrome(); render(); return; }
   $("modErr").textContent = ""; $("modName").value = load("rq-name", ""); $("modPass").value = "";
   $("modDlg").showModal();
 });
@@ -576,16 +652,16 @@ $("modForm").addEventListener("submit", async (e) => {
   const name = $("modName").value.trim(), pass = $("modPass").value;
   $("modErr").textContent = "Checking…";
   try {
-    await rpc("verify_mod", {p_pass: pass});
-    mod = {name, pass}; store("rq-mod", mod); store("rq-name", name);
+    await signIn(pass);
+    mod = {name}; store("rq-mod", mod); store("rq-name", name);
     $("modDlg").close(); renderChrome(); render(); toast(`Signed in as ${name}`);
   } catch (err) { $("modErr").textContent = err.auth ? "That password isn't right." : err.message; }
 });
 document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh({quiet: true}); });
 setInterval(() => { if (!document.hidden) refresh({quiet: true}); }, Math.max(10, CFG.refreshSeconds || 30) * 1000);
 
-if (!/^https:\/\/.+/.test(CFG.supabaseUrl || "") || /YOUR-PROJECT|REPLACE_ME/.test(`${CFG.supabaseUrl}${CFG.supabaseKey}`)) {
-  $("brief").textContent = "Almost there: put your Supabase URL and publishable key in docs/config.js.";
+if (!CFG.firestoreProjectId || !CFG.firebaseApiKey || /YOUR-FIREBASE-PROJECT-ID|REPLACE_ME/.test(`${CFG.firestoreProjectId}${CFG.firebaseApiKey}`)) {
+  $("brief").textContent = "Almost there: put your Firebase project id and Web API key in docs/config.js.";
   renderChrome();
 } else {
   renderChrome();
