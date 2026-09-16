@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Xaryu React Queue</title>
+<meta name="description" content="Daily react picks for Xaryu's stream: WoW Classic, Forever, Hardcore Moments, Blizzard news and more.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%237236C9'/><path d='M12 9v14l11-7z' fill='white'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  color-scheme:light;
+  --ground:#EEF0F5; --surface:#FFFFFF; --sunk:#E4E7EF; --ink:#161923; --muted:#596077; --line:#D6DAE5;
+  --epic:#7236C9; --rare:#0A5FBF; --uncommon:#1B7F2A; --legend:#B85300; --heir:#0B7F9A;
+  --epic-bg:#F2ECFB; --rare-bg:#E8F1FC; --uncommon-bg:#E7F4E9; --legend-bg:#FBEEDF; --heir-bg:#E3F4F8;
+  --focus:#0A5FBF; --ok:#1B7F2A; --fresh:#C8102E; --warn:#9A6400;
+  --a1:#8A4B08; --a2:#1F5FA8; --a3:#6B3FA0; --a4:#1D7A4F; --a5:#A3324B; --a6:#3C5A73; --a7:#8C6D00; --a8:#2E6E78;
+  --display:"Archivo","Arial Narrow",system-ui,sans-serif;
+  --body:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    color-scheme:dark;
+    --ground:#0F1117; --surface:#181B24; --sunk:#12141B; --ink:#E9EBF2; --muted:#9AA1B5; --line:#2A2F3D;
+    --epic:#B784FF; --rare:#5AAEFF; --uncommon:#4FD467; --legend:#FF9C45; --heir:#4FD0EE;
+    --epic-bg:#221A33; --rare-bg:#15223A; --uncommon-bg:#15281A; --legend-bg:#2E2114; --heir-bg:#12282E;
+    --focus:#5AAEFF; --ok:#4FD467; --fresh:#FF5A6E; --warn:#F2B64C;
+    --a1:#D98A3A; --a2:#5E9BE0; --a3:#A884D6; --a4:#4DBB86; --a5:#E0708A; --a6:#86A3BD; --a7:#D1B144; --a8:#5FB4BF;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--ground);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+img{max-width:100%}
+[hidden]{display:none!important}
+.wrap{max-width:1280px;margin:0 auto;padding-inline:20px;padding-block:22px 64px}
+button,textarea,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+svg.g{width:1em;height:1em;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+a{color:inherit}
+
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+h1{font-family:var(--display);font-stretch:118%;font-weight:800;font-size:clamp(26px,4vw,38px);line-height:1.05;margin:2px 0 0;letter-spacing:-.01em}
+.tally{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.tally b{display:block;font-family:var(--display);font-stretch:110%;font-size:24px;font-weight:700;color:var(--ink);line-height:1.1}
+.brief{margin:12px 0 0;font-size:15.5px;max-width:80ch;text-wrap:pretty}
+.brief .gen{display:block;font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-top:4px}
+.banner{margin-top:12px;padding:10px 12px;border-radius:8px;border:1px solid var(--warn);color:var(--ink);background:var(--surface);font-size:13.5px}
+
+.toolbar{position:sticky;top:0;z-index:5;background:var(--ground);display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding-block:10px;margin-top:14px;border-block:1px solid var(--line)}
+@media (max-width:640px){.toolbar{position:static}}
+.toolbar select{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:5px 8px;font-family:var(--mono);font-size:12.5px}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:transparent;border-radius:999px;padding:3px 10px;font-size:13px;cursor:pointer}
+.chip i{font-style:normal;font-family:var(--mono);font-size:11px;color:var(--muted)}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--ground);border-color:var(--ink)}
+.chip[aria-pressed="true"] i{color:inherit;opacity:.7}
+.spacer{flex:1}
+.tog{display:inline-flex;gap:6px;align-items:center;font-size:13px;color:var(--muted);cursor:pointer}
+.btn{border:1px solid var(--ink);background:var(--ink);color:var(--ground);border-radius:6px;padding:5px 12px;font-size:13px;font-weight:600;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
+.who{font-family:var(--mono);font-size:12px;color:var(--muted)}
+
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:28px;margin-top:6px;align-items:start}
+@media (max-width:980px){.layout{grid-template-columns:minmax(0,1fr)}}
+
+.sec{margin-top:22px}
+.sec>h2{display:flex;align-items:center;gap:8px;font-family:var(--display);font-stretch:112%;font-size:13px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin:0 0 10px;color:var(--tc)}
+.sec>h2::before{content:"";width:10px;height:10px;border-radius:2px;background:var(--tc)}
+.sec>h2 span{font-family:var(--body);font-stretch:100%;letter-spacing:0;text-transform:none;font-weight:400;color:var(--muted);font-size:13px}
+[data-t="series"]{--tc:var(--legend);--tb:var(--legend-bg)}
+[data-t="epic"]{--tc:var(--epic);--tb:var(--epic-bg)}
+[data-t="rare"]{--tc:var(--rare);--tb:var(--rare-bg)}
+[data-t="uncommon"]{--tc:var(--uncommon);--tb:var(--uncommon-bg)}
+[data-t="mod"]{--tc:var(--heir);--tb:var(--heir-bg)}
+
+.av{width:26px;height:26px;border-radius:6px;display:grid;place-items:center;flex:none;overflow:hidden;color:#fff;font-family:var(--display);font-stretch:90%;font-weight:800;font-size:11px;background:var(--av,var(--a6))}
+.av img{width:100%;height:100%;object-fit:cover;display:block;background:var(--surface)}
+.av.round{border-radius:50%}
+.src{display:inline-flex;align-items:center;gap:7px;min-width:0;font-size:12.5px;color:var(--muted)}
+.src b{color:var(--ink);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:22ch}
+.ttl{font-weight:650;color:var(--ink);text-decoration:none;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden}
+.ttl:hover{color:var(--tc);text-decoration:underline}
+.why{color:var(--muted);font-size:13.5px;margin:0;display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden}
+.why:hover{-webkit-line-clamp:unset!important}
+.pills{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.pill{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:11px;line-height:1;padding:4px 6px;border-radius:4px;border:1px solid var(--line);color:var(--muted);white-space:nowrap;text-decoration:none}
+a.pill:hover{border-color:var(--ink);color:var(--ink)}
+.pill.off{background:var(--ink);border-color:var(--ink);color:var(--surface)}
+.pill.fresh{border-color:var(--fresh);color:var(--fresh);font-weight:500}
+.pill.ser{background:var(--legend);border-color:var(--legend);color:var(--surface);font-weight:500}
+.pill.stat{border-style:dashed}
+.acts{display:flex;gap:4px;flex-wrap:wrap}
+.act{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:4px 8px;font-size:12.5px;cursor:pointer;white-space:nowrap}
+.act:disabled{cursor:default;opacity:.85}
+.act[aria-pressed="true"][data-s="queued"]{background:var(--tc);color:var(--surface);border-color:var(--tc)}
+.act[aria-pressed="true"][data-s="watched"]{background:var(--ok);color:var(--surface);border-color:var(--ok)}
+.act[aria-pressed="true"][data-s="skip"]{background:var(--sunk);border-color:var(--muted)}
+.act.rm{color:var(--muted)}
+.state-queued{box-shadow:inset 0 0 0 2px var(--tc)}
+.state-done{opacity:.5}
+@media (prefers-reduced-motion:no-preference){.card,.row{transition:opacity .15s,box-shadow .15s}}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
+.thumb{position:relative;aspect-ratio:16/9;max-width:100%;background:var(--tb);display:grid;place-items:center;color:var(--tc);overflow:hidden;text-decoration:none}
+.thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.thumb.vert img{object-fit:contain;background:#0b0c10}
+.ph{display:grid;justify-items:center;gap:6px;text-align:center;padding:10px}
+.ph svg.g{width:34px;height:34px;stroke-width:1.6}
+.ph span{font-family:var(--display);font-stretch:110%;font-weight:700;font-size:13px;color:var(--ink);opacity:.8;max-width:26ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ph .num{font-stretch:125%;font-weight:800;font-size:44px;line-height:1;color:var(--tc);opacity:1;max-width:none}
+.thumb .badge{position:absolute;display:inline-flex;align-items:center;gap:4px;background:rgba(10,12,18,.8);color:#fff;font-family:var(--mono);font-size:11px;padding:3px 6px;border-radius:4px}
+.thumb .kind{right:8px;bottom:8px}
+.thumb .ser{left:8px;top:8px;background:var(--legend)}
+.card .body{padding:10px 12px 12px;display:flex;flex-direction:column;gap:7px;flex:1}
+.card .ttl{font-size:15.5px;-webkit-line-clamp:3}
+.card .why{-webkit-line-clamp:3}
+.card .foot{margin-top:auto;padding-top:4px}
+
+.rows{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 12px;align-items:start;padding:10px 12px;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.mini{width:96px;aspect-ratio:16/9;border-radius:6px;background:var(--tb);color:var(--tc);display:grid;place-items:center;overflow:hidden;position:relative;text-decoration:none}
+.mini img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.mini svg.g{width:20px;height:20px}
+.mini .dur{position:absolute;right:3px;bottom:3px;background:rgba(10,12,18,.8);color:#fff;font-family:var(--mono);font-size:10px;padding:1px 4px;border-radius:3px}
+.row .ttl{font-size:14.5px;-webkit-line-clamp:2}
+.row .line{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;margin-top:4px}
+.row .why{-webkit-line-clamp:1;margin-top:3px}
+.row .acts{align-self:center;justify-content:flex-end}
+@media (max-width:640px){.row{grid-template-columns:auto minmax(0,1fr)}.row .acts{grid-column:1/-1;justify-content:flex-start}.mini{width:72px}}
+
+aside{display:flex;flex-direction:column;gap:18px;padding-top:22px}
+.panel{border-top:2px solid var(--ink);padding-top:10px}
+.panel h3{font-family:var(--display);font-stretch:112%;font-size:13px;letter-spacing:.1em;text-transform:uppercase;margin:0 0 6px}
+.panel p{margin:0 0 8px;color:var(--muted);font-size:13px}
+textarea{width:100%;min-height:100px;border:1px solid var(--line);border-radius:6px;background:var(--surface);padding:10px;font-size:14px;resize:vertical}
+.saved{font-family:var(--mono);font-size:11px;color:var(--muted);min-height:1em}
+.srcs{list-style:none;margin:0;padding:0;font-size:13px}
+.srcs li{padding:5px 0;border-bottom:1px dashed var(--line)}
+.srcs li:last-child{border-bottom:0}
+.srcs .k{font-family:var(--mono);font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:block}
+.legend{display:grid;gap:5px;font-size:13px}
+.legend div{display:flex;gap:8px;align-items:baseline}
+.legend i{font-style:normal;font-weight:650;color:var(--tc);white-space:nowrap}
+form.add{display:grid;gap:8px}
+label.f{font-size:11.5px;font-family:var(--mono);color:var(--muted);display:grid;gap:3px}
+label.f input,label.f select{width:100%;border:1px solid var(--line);border-radius:6px;background:var(--surface);padding:7px 9px;font-size:14px}
+.rowf{display:flex;gap:8px;align-items:end}
+.empty{padding:28px 16px;color:var(--muted);text-align:center;background:var(--surface);border:1px dashed var(--line);border-radius:10px;margin-top:18px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--ground);padding:8px 14px;border-radius:6px;font-size:13px;z-index:10;max-width:calc(100vw - 32px)}
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);padding:18px;width:min(360px,calc(100vw - 32px))}
+dialog::backdrop{background:rgba(10,12,18,.5)}
+dialog h3{margin:0 0 4px;font-family:var(--display);font-stretch:112%}
+dialog p{margin:0 0 12px;color:var(--muted);font-size:13px}
+dialog form{display:grid;gap:10px}
+.err{color:var(--fresh);font-size:13px;min-height:1em}
+</style>
+<script src="config.js"></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-video" viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M10 9.2v5.6l4.8-2.8z" fill="currentColor"/></symbol>
+  <symbol id="i-short" viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M10.8 9.8v4.4l3.6-2.2z" fill="currentColor"/></symbol>
+  <symbol id="i-article" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M14.5 3v4.5H19M9 12h7M9 15.5h7M9 9h3"/></symbol>
+  <symbol id="i-post" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+</svg>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow" id="eyebrow">Daily react picks</div>
+      <h1>Xaryu React Queue</h1>
+    </div>
+    <div class="tally" aria-live="polite">
+      <div><b id="nPicks">–</b>picks</div>
+      <div><b id="nNew">–</b>new today</div>
+      <div><b id="nQueued">–</b>queued</div>
+      <div><b id="nWatched">–</b>watched</div>
+    </div>
+  </header>
+  <p class="brief" id="brief">Loading…</p>
+  <div class="banner" id="banner" hidden></div>
+
+  <div class="toolbar">
+    <label for="daySel" class="tog">Day</label>
+    <select id="daySel" aria-label="Choose a day"></select>
+    <span id="chips" style="display:contents"></span>
+    <span class="spacer"></span>
+    <label class="tog"><input type="checkbox" id="hideDone"> Hide watched &amp; skipped</label>
+    <button class="btn ghost" id="copyQ" type="button">Copy queue</button>
+    <span class="who" id="who"></span>
+    <button class="btn" id="modBtn" type="button">Mod sign-in</button>
+  </div>
+
+  <div class="layout">
+    <main id="sections"></main>
+    <aside>
+      <section class="panel" id="addPanel" hidden>
+        <h3>Add a link</h3>
+        <p>Found something on Reddit, Twitter or Discord? It goes under Mod picks for <b id="addDay">today</b>.</p>
+        <form class="add" id="addForm">
+          <label class="f" for="addUrl">Link<input id="addUrl" type="url" required placeholder="https://www.reddit.com/r/classicwow/…"></label>
+          <label class="f" for="addTitle">Title<input id="addTitle" type="text" maxlength="200" placeholder="What is it?"></label>
+          <label class="f" for="addNote">Why it's good (optional)<input id="addNote" type="text" maxlength="300" placeholder="e.g. funny HC death, 2k upvotes"></label>
+          <div class="rowf">
+            <label class="f" for="addCat" style="flex:1">Category<select id="addCat"></select></label>
+            <button class="btn" type="submit">Add</button>
+          </div>
+        </form>
+      </section>
+      <section class="panel">
+        <h3>Notes for tomorrow</h3>
+        <p>The 9 AM run reads this first, e.g. “more hardcore clips” or “already covered the Skyborne drama”.</p>
+        <textarea id="notes" aria-label="Notes for the next daily run" placeholder="Sign in as a mod to edit." readonly></textarea>
+        <div class="saved" id="notesSaved"></div>
+      </section>
+      <section class="panel">
+        <h3>Key</h3>
+        <div class="legend">
+          <div data-t="series"><i>Series</i> New Hardcore Moments / Forever Moments</div>
+          <div data-t="epic"><i>Epic</i> React first</div>
+          <div data-t="rare"><i>Rare</i> Solid segment picks</div>
+          <div data-t="uncommon"><i>Uncommon</i> Shorts and quick bits</div>
+          <div data-t="mod"><i>Mod picks</i> Added by mods</div>
+          <div><span class="pill off">Official</span> Blizzard's own channel or site</div>
+          <div><span class="pill fresh">Today</span> Posted on the list's date</div>
+        </div>
+      </section>
+      <section class="panel">
+        <h3>What gets checked</h3>
+        <ul class="srcs" id="sources"><li>Loading…</li></ul>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<dialog id="modDlg">
+  <h3>Mod sign-in</h3>
+  <p>Ask Andrew for the mod password. It's saved in this browser only.</p>
+  <form id="modForm" method="dialog">
+    <label class="f" for="modName">Your name (shown on marks)<input id="modName" type="text" maxlength="40" autocomplete="nickname" required></label>
+    <label class="f" for="modPass">Mod password<input id="modPass" type="password" autocomplete="current-password" required></label>
+    <div class="err" id="modErr"></div>
+    <div class="rowf" style="justify-content:flex-end">
+      <button class="btn ghost" type="button" id="modCancel">Cancel</button>
+      <button class="btn" type="submit">Sign in</button>
+    </div>
+  </form>
+</dialog>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+"use strict";
+const CFG = window.RQ_CONFIG || {};
+const CATS = {forever:"Forever",classic:"Classic & HC",blizzard:"Blizzard",mmo:"MMO",variety:"Variety",other:"Other"};
+const SECTIONS = [["series","Series","New episodes","cards"],["epic","Epic","React first","cards"],["rare","Rare","Strong picks","rows"],["uncommon","Uncommon","Shorts & quick bits","rows"],["mod","Mod picks","Added by mods","rows"]];
+const KIND = {video:"Video",short:"Short",article:"Article",post:"Thread",link:"Link"};
+const $ = (id) => document.getElementById(id);
+
+// ------------------------------------------------------------------ Supabase REST (no library needed)
+const API = String(CFG.supabaseUrl || "").replace(/\/+$/, "") + "/rest/v1";
+const HDR = {apikey: CFG.supabaseKey || "", "Content-Type": "application/json"};
+if (String(CFG.supabaseKey || "").startsWith("eyJ")) HDR.Authorization = "Bearer " + CFG.supabaseKey;
+async function q(path) {
+  const r = await fetch(`${API}/${path}`, {headers: HDR, cache: "no-store"});
+  if (!r.ok) throw new Error(`Couldn't load data (${r.status})`);
+  return r.json();
+}
+async function rpc(fn, body) {
+  const r = await fetch(`${API}/rpc/${fn}`, {method: "POST", headers: HDR, body: JSON.stringify(body)});
+  if (!r.ok) {
+    let msg = `Request failed (${r.status})`;
+    try { const j = await r.json(); msg = j.message || msg; } catch {}
+    const e = new Error(msg); e.auth = /password/i.test(msg); throw e;
+  }
+  const t = await r.text();
+  return t ? JSON.parse(t) : null;
+}
+
+// ------------------------------------------------------------------ state
+let dates = [], sel = null, day = null, marks = {}, extras = [], cat = "all";
+let mod = loadMod();
+const pending = new Map(); // item_id → state set locally but not yet confirmed
+
+function store(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+function load(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } }
+function loadMod() { const m = load("rq-mod", null); return m && m.pass ? m : null; }
+$("hideDone").checked = !!load("rq-hide", false);
+$("addCat").innerHTML = Object.entries(CATS).map(([k, l]) => `<option value="${k}"${k === "classic" ? " selected" : ""}>${l}</option>`).join("");
+
+// ------------------------------------------------------------------ helpers
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (t.hidden = true), 2800); }
+const fmtDay = (d) => new Date(d + "T12:00:00").toLocaleDateString(undefined, {weekday: "short", month: "short", day: "numeric"});
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+function safeUrl(u) { try { const x = new URL(u); return /^https?:$/.test(x.protocol) ? x.href : ""; } catch { return ""; } }
+function hostOf(u) { try { return new URL(u).hostname.replace(/^(www|m|old)\./, ""); } catch { return ""; } }
+function ytId(u) { const m = String(u || "").match(/(?:v=|youtu\.be\/|shorts\/)([\w-]{11})/); return m ? m[1] : null; }
+const g = (n) => `<svg class="g" aria-hidden="true"><use href="#i-${n}"/></svg>`;
+function initials(name) {
+  const w = String(name || "?").replace(/^r\//, "").replace(/\(.*?\)/g, "").replace(/[^\p{L}\p{N} ]/gu, " ").trim().split(/\s+/).filter(Boolean);
+  if (!w.length) return "?";
+  return (w.length === 1 ? w[0].slice(0, 2) : w[0][0] + w[1][0]).toUpperCase();
+}
+function hue(name) { let h = 0; for (const c of String(name)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return `var(--a${h % 8 + 1})`; }
+function isFresh(i) {
+  if (!sel || !i.posted) return false;
+  const md = new Date(sel + "T12:00:00").toLocaleDateString("en-US", {month: "short", day: "numeric"});
+  return i.posted === md;
+}
+const primaryUrl = (i) => safeUrl(i.link) || safeUrl(i.url);
+
+// Source picture: channel avatar → site favicon → colored initials
+function avatar(i) {
+  const name = i.source || hostOf(i.url);
+  const fallback = esc(initials(name));
+  const bg = i.official ? "var(--ink)" : hue(name);
+  let src = safeUrl(i.avatar);
+  let round = !!src;
+  if (!src) {
+    const dom = i.domain || hostOf(primaryUrl(i));
+    if (dom) src = `https://www.google.com/s2/favicons?sz=64&domain=${encodeURIComponent(dom)}`;
+  }
+  if (!src) return `<span class="av" style="--av:${bg}" aria-hidden="true">${fallback}</span>`;
+  return `<span class="av${round ? " round" : ""}" style="--av:${bg}" aria-hidden="true"><img src="${esc(src)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-fallback="${fallback}"></span>`;
+}
+function thumbUrl(i) {
+  const t = safeUrl(i.thumb);
+  if (t) return t;
+  const id = ytId(i.url) || ytId(i.link);
+  return id ? `https://i.ytimg.com/vi/${id}/mqdefault.jpg` : "";
+}
+document.addEventListener("error", (e) => {
+  const img = e.target;
+  if (!(img instanceof HTMLImageElement)) return;
+  if (img.dataset.fallback !== undefined) { const s = img.parentElement; s.textContent = img.dataset.fallback; return; }
+  img.remove();
+}, true);
+
+// ------------------------------------------------------------------ items
+function allItems() {
+  const base = (day?.items || []).map((i) => ({...i, tier: i.series ? "series" : i.tier}));
+  const mods = extras.filter((x) => !x.removed).map((x) => ({
+    id: "x-" + x.id, extraId: x.id, tier: "mod", cat: CATS[x.cat] ? x.cat : "other",
+    kind: /youtube\.com\/shorts\//.test(x.url) ? "short" : /youtu\.?be/.test(x.url) ? "video" : /reddit\.com/.test(x.url) ? "post" : "link",
+    title: x.title || hostOf(x.url), source: (x.by_name ? x.by_name + " · " : "") + hostOf(x.url), url: x.url, domain: hostOf(x.url), why: x.note || "",
+  }));
+  return base.concat(mods);
+}
+const stateOf = (id) => (pending.has(id) ? pending.get(id) : marks[id]?.state || "");
+const stateCls = (i) => { const s = stateOf(i.id); return s === "queued" ? "state-queued" : s === "watched" || s === "skip" ? "state-done" : ""; };
+
+function acts(i) {
+  const s = stateOf(i.id);
+  const who = marks[i.id]?.by_name ? ` title="Marked by ${esc(marks[i.id].by_name)}"` : "";
+  if (!mod) {
+    if (!s) return "";
+    const label = {queued: "Queued", watched: "Seen", skip: "Skipped"}[s];
+    return `<div class="acts"><button class="act" type="button" disabled aria-pressed="true" data-s="${s}"${who}>${label}</button></div>`;
+  }
+  const b = (k, l, ic) => `<button class="act" type="button" data-id="${esc(i.id)}" data-s="${k}" aria-pressed="${s === k}"${s === k ? who : ""}>${g(ic)}${l}</button>`;
+  return `<div class="acts">${b("queued", "Queue", "plus")}${b("watched", "Seen", "check")}${b("skip", "Skip", "x")}${i.extraId ? `<button class="act rm" type="button" data-rm="${esc(i.extraId)}">Remove</button>` : ""}</div>`;
+}
+function pills(i) {
+  const out = [];
+  if (i.official) out.push(`<span class="pill off">Official</span>`);
+  if (isFresh(i)) out.push(`<span class="pill fresh">Today</span>`);
+  else if (i.posted) out.push(`<span class="pill">${esc(i.posted)}</span>`);
+  if (i.stats) out.push(`<span class="pill stat">${esc(i.stats)}</span>`);
+  out.push(`<span class="pill">${esc(CATS[i.cat] || i.cat || "")}</span>`);
+  for (const a of i.alsoOn || []) out.push(`<span class="pill">${esc(a)}</span>`);
+  const thread = safeUrl(i.discussion);
+  if (thread) out.push(`<a class="pill" href="${esc(thread)}" target="_blank" rel="noopener">${g("post")}Thread</a>`);
+  return `<div class="pills">${out.join("")}</div>`;
+}
+function card(i) {
+  const href = esc(primaryUrl(i)), t = thumbUrl(i);
+  const num = i.series && (String(i.series).match(/#\s?\d+/) || [])[0];
+  const ph = num
+    ? `<div class="ph"><span class="num">${esc(num)}</span><span>${esc(String(i.series).replace(/\s*#\s?\d+.*/, ""))}</span></div>`
+    : `<div class="ph">${g(i.kind || "link")}<span>${esc(i.source || hostOf(i.url))}</span></div>`;
+  return `<article class="card ${stateCls(i)}">
+    <a class="thumb${i.kind === "short" ? " vert" : ""}" href="${href}" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true">
+      ${ph}${t ? `<img src="${esc(t)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ""}
+      ${i.series ? `<span class="badge ser">${esc(i.series)}</span>` : ""}
+      <span class="badge kind">${g(i.kind || "link")}${esc(i.length || KIND[i.kind] || "Link")}</span>
+    </a>
+    <div class="body">
+      <div class="src">${avatar(i)}<b>${esc(i.source || hostOf(i.url))}</b></div>
+      <a class="ttl" href="${href}" target="_blank" rel="noopener">${esc(i.title)}</a>
+      ${pills(i)}
+      ${i.why ? `<p class="why" title="${esc(i.why)}">${esc(i.why)}</p>` : ""}
+      <div class="foot">${acts(i)}</div>
+    </div>
+  </article>`;
+}
+function row(i) {
+  const href = esc(primaryUrl(i)), t = thumbUrl(i);
+  return `<article class="row ${stateCls(i)}">
+    <a class="mini" href="${href}" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true">${g(i.kind || "link")}${t ? `<img src="${esc(t)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ""}${i.length || i.kind === "short" ? `<span class="dur">${esc(i.kind === "short" ? "Short" : i.length)}</span>` : ""}</a>
+    <div>
+      <a class="ttl" href="${href}" target="_blank" rel="noopener">${esc(i.title)}</a>
+      <div class="line"><span class="src">${avatar(i)}<b>${esc(i.source || hostOf(i.url))}</b></span>${pills(i)}</div>
+      ${i.why ? `<p class="why" title="${esc(i.why)}">${esc(i.why)}</p>` : ""}
+    </div>
+    ${acts(i)}
+  </article>`;
+}
+
+// ------------------------------------------------------------------ render
+function renderChrome() {
+  $("daySel").innerHTML = dates.map((d, n) => `<option value="${esc(d)}"${d === sel ? " selected" : ""}>${esc(fmtDay(d))}${n === 0 ? " (latest)" : ""}</option>`).join("");
+  $("addDay").textContent = sel ? fmtDay(sel) : "today";
+  $("modBtn").textContent = mod ? "Sign out" : "Mod sign-in";
+  $("who").textContent = mod ? `Signed in as ${mod.name}` : "";
+  $("addPanel").hidden = !mod;
+  $("notes").readOnly = !mod;
+  $("notes").placeholder = mod ? "Anything the next list should do differently…" : "Sign in as a mod to edit.";
+}
+function render() {
+  if (!day) return;
+  $("brief").innerHTML = `${esc(day.headline || "")}<span class="gen">Updated ${esc(new Date(day.generated_at).toLocaleString([], {dateStyle: "medium", timeStyle: "short"}))}${day.coverage ? " · " + esc(day.coverage) : ""}</span>`;
+  $("eyebrow").textContent = "Daily react picks · " + fmtDay(day.date);
+  const items = allItems();
+  const counts = {};
+  items.forEach((i) => (counts[i.cat] = (counts[i.cat] || 0) + 1));
+  if (cat !== "all" && !counts[cat]) cat = "all";
+  $("chips").innerHTML = [["all", "All", items.length], ...Object.entries(CATS).filter(([k]) => counts[k]).map(([k, l]) => [k, l, counts[k]])]
+    .map(([k, l, n]) => `<button class="chip" type="button" data-c="${k}" aria-pressed="${k === cat}">${esc(l)}<i>${n}</i></button>`).join("");
+  let qd = 0, w = 0, f = 0;
+  items.forEach((i) => { const s = stateOf(i.id); if (s === "queued") qd++; if (s === "watched") w++; if (isFresh(i)) f++; });
+  $("nPicks").textContent = items.length; $("nNew").textContent = f; $("nQueued").textContent = qd; $("nWatched").textContent = w;
+  const hide = $("hideDone").checked;
+  let html = "";
+  for (const [t, label, sub, mode] of SECTIONS) {
+    const list = items.filter((i) => i.tier === t && (cat === "all" || i.cat === cat))
+      .filter((i) => { const s = stateOf(i.id); return !(hide && (s === "watched" || s === "skip")); })
+      .sort((a, b) => (b.official ? 1 : 0) - (a.official ? 1 : 0) || (isFresh(b) ? 1 : 0) - (isFresh(a) ? 1 : 0));
+    if (!list.length) continue;
+    html += `<section class="sec" data-t="${t}"><h2>${label}<span>${sub} · ${list.length}</span></h2>` +
+      (mode === "cards" ? `<div class="grid">${list.map(card).join("")}</div>` : `<div class="rows">${list.map(row).join("")}</div>`) + `</section>`;
+  }
+  $("sections").innerHTML = html || `<div class="empty">Nothing left in this view.</div>`;
+}
+
+// ------------------------------------------------------------------ data loading
+async function loadDates() {
+  const rows = await q("days?select=date&order=date.desc&limit=30");
+  dates = rows.map((r) => r.date);
+  if (!sel || !dates.includes(sel)) sel = dates[0] || null;
+}
+async function loadDay() {
+  if (!sel) { day = null; return; }
+  const [d, m, x] = await Promise.all([
+    q(`days?select=*&date=eq.${sel}`),
+    q(`marks?select=item_id,state,by_name&date=eq.${sel}`),
+    q(`extras?select=*&date=eq.${sel}&order=added_at.asc`),
+  ]);
+  day = d[0] || null;
+  marks = Object.fromEntries(m.map((r) => [r.item_id, r]));
+  for (const [id, s] of pending) if ((marks[id]?.state || "") === s) pending.delete(id);
+  extras = x;
+}
+async function loadSettings() {
+  const rows = await q("settings?select=key,value,updated_at&key=in.(notes,sources)");
+  const by = Object.fromEntries(rows.map((r) => [r.key, r]));
+  if (document.activeElement !== $("notes")) {
+    $("notes").value = by.notes?.value?.text || "";
+    $("notesSaved").textContent = by.notes?.updated_at && by.notes.value?.text
+      ? `Last edited ${new Date(by.notes.updated_at).toLocaleString()}${by.notes.value.by ? " by " + by.notes.value.by : ""}` : "";
+  }
+  const src = by.sources?.value;
+  $("sources").innerHTML = src?.groups?.length
+    ? src.groups.map((gr) => `<li><span class="k">${esc(gr.label)}</span>${esc((gr.entries || []).join(", "))}</li>`).join("")
+    : "<li>Appears after the first daily run.</li>";
+}
+async function refresh({quiet = false} = {}) {
+  try {
+    const was = sel;
+    const latestBefore = dates[0];
+    await loadDates();
+    if (was && was === latestBefore && dates[0] !== latestBefore) sel = dates[0]; // follow the new day if you were on the latest
+    await Promise.all([loadDay(), loadSettings()]);
+    $("banner").hidden = true;
+    if (!day) {
+      $("brief").textContent = "No lists yet. The first one appears after the daily job runs.";
+      $("sections").innerHTML = "";
+    }
+    renderChrome();
+    render();
+  } catch (e) {
+    if (!quiet) { $("banner").textContent = `${e.message}. Check your connection and reload.`; $("banner").hidden = false; }
+  }
+}
+
+// ------------------------------------------------------------------ mod actions
+function authFail(e) {
+  if (e.auth) { mod = null; store("rq-mod", null); renderChrome(); render(); toast("The mod password changed. Sign in again."); return true; }
+  return false;
+}
+async function setMark(id, state) {
+  const next = stateOf(id) === state ? "" : state;
+  pending.set(id, next); render();
+  try {
+    await rpc("set_mark", {p_pass: mod.pass, p_date: sel, p_item: id, p_state: next, p_by: mod.name});
+    marks[id] = {item_id: id, state: next, by_name: mod.name};
+    pending.delete(id); render();
+  } catch (e) {
+    pending.delete(id); render();
+    if (!authFail(e)) toast(`Couldn't save: ${e.message}`);
+  }
+}
+async function addLink(ev) {
+  ev.preventDefault();
+  const url = $("addUrl").value.trim();
+  if (!safeUrl(url)) return toast("Paste the full link, starting with https://");
+  if (allItems().some((i) => i.url === url || i.link === url)) return toast("That link is already on this day's list.");
+  try {
+    await rpc("add_extra", {p_pass: mod.pass, p_date: sel, p_url: url, p_title: $("addTitle").value.trim(), p_note: $("addNote").value.trim(), p_cat: $("addCat").value, p_by: mod.name});
+    $("addUrl").value = ""; $("addTitle").value = ""; $("addNote").value = "";
+    toast("Added to Mod picks");
+    await loadDay(); render();
+  } catch (e) { if (!authFail(e)) toast(`Couldn't add: ${e.message}`); }
+}
+async function removeLink(id) {
+  try { await rpc("remove_extra", {p_pass: mod.pass, p_id: id}); await loadDay(); render(); }
+  catch (e) { if (!authFail(e)) toast(`Couldn't remove: ${e.message}`); }
+}
+let notesTimer;
+function queueNotes() {
+  if (!mod) return;
+  $("notesSaved").textContent = "Editing…";
+  clearTimeout(notesTimer);
+  notesTimer = setTimeout(async () => {
+    try { await rpc("set_notes", {p_pass: mod.pass, p_text: $("notes").value, p_by: mod.name}); $("notesSaved").textContent = "Saved · the next run will read this"; }
+    catch (e) { if (!authFail(e)) $("notesSaved").textContent = `Couldn't save: ${e.message}`; }
+  }, 900);
+}
+async function copyQueue() {
+  const list = allItems().filter((i) => stateOf(i.id) === "queued");
+  if (!list.length) return toast("Nothing queued yet.");
+  const text = list.map((i) => `${i.title} — ${primaryUrl(i)}`).join("\n");
+  try { await navigator.clipboard.writeText(text); toast(`Copied ${list.length} links`); }
+  catch { toast("Your browser blocked copying."); }
+}
+
+// ------------------------------------------------------------------ events
+document.addEventListener("click", (e) => {
+  const chip = e.target.closest(".chip"); if (chip) { cat = chip.dataset.c; render(); return; }
+  if (!mod) return;
+  const rm = e.target.closest("[data-rm]"); if (rm) { removeLink(rm.dataset.rm); return; }
+  const act = e.target.closest(".act[data-id]"); if (act) setMark(act.dataset.id, act.dataset.s);
+});
+$("daySel").addEventListener("change", async () => { sel = $("daySel").value; cat = "all"; await refresh(); });
+$("hideDone").addEventListener("change", () => { store("rq-hide", $("hideDone").checked); render(); });
+$("copyQ").addEventListener("click", copyQueue);
+$("notes").addEventListener("input", queueNotes);
+$("addForm").addEventListener("submit", addLink);
+$("modBtn").addEventListener("click", () => {
+  if (mod) { mod = null; store("rq-mod", null); renderChrome(); render(); return; }
+  $("modErr").textContent = ""; $("modName").value = load("rq-name", ""); $("modPass").value = "";
+  $("modDlg").showModal();
+});
+$("modCancel").addEventListener("click", () => $("modDlg").close());
+$("modForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const name = $("modName").value.trim(), pass = $("modPass").value;
+  $("modErr").textContent = "Checking…";
+  try {
+    await rpc("verify_mod", {p_pass: pass});
+    mod = {name, pass}; store("rq-mod", mod); store("rq-name", name);
+    $("modDlg").close(); renderChrome(); render(); toast(`Signed in as ${name}`);
+  } catch (err) { $("modErr").textContent = err.auth ? "That password isn't right." : err.message; }
+});
+document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh({quiet: true}); });
+setInterval(() => { if (!document.hidden) refresh({quiet: true}); }, Math.max(10, CFG.refreshSeconds || 30) * 1000);
+
+if (!/^https:\/\/.+/.test(CFG.supabaseUrl || "") || /YOUR-PROJECT|REPLACE_ME/.test(`${CFG.supabaseUrl}${CFG.supabaseKey}`)) {
+  $("brief").textContent = "Almost there: put your Supabase URL and publishable key in docs/config.js.";
+  renderChrome();
+} else {
+  renderChrome();
+  refresh();
+}
+</script>
+</body>
+</html>

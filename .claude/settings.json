@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm test)",
+      "Bash(npm run dry-run)",
+      "Bash(node --check:*)",
+      "Bash(bash scripts/check-setup.sh)",
+      "Bash(gh repo view:*)",
+      "Bash(gh secret list:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
+      "Bash(git status)",
+      "Bash(git diff:*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Bash(gh secret set:*)"
+    ]
+  }
+}
