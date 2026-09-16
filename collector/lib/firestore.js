@@ -50,19 +50,18 @@ export function createFirestoreClient({ serviceAccountJson }) {
     },
 
     /**
-     * Unfiltered, ordered list, e.g. { orderBy: "__name__", direction: "desc", limit: 8 } to get
-     * the N most recent by doc id. Goes through :runQuery rather than the plain documents.list GET
-     * endpoint — the latter doesn't support descending order on __name__ without a manual composite
-     * index, while :runQuery uses Firestore's automatic per-field indexes correctly.
+     * All documents in a small collection (this project only ever calls this on `days`, capped to
+     * ~60 by pruneBefore), newest doc-id first, optionally capped to `limit`. Deliberately doesn't
+     * ask Firestore to order or limit server-side: ordering by __name__ desc with no filter turns
+     * out to still require a manual composite index even via :runQuery, and sending a server-side
+     * limit without a matching orderBy would return an arbitrary N docs, not the most recent N.
+     * Sorting the whole (small) collection here in JS sidesteps both problems.
      */
-    async listDocs(collection, { orderBy = "__name__", direction = "desc", limit = 20 } = {}) {
-      const structuredQuery = {
-        from: [{ collectionId: collection }],
-        orderBy: [{ field: { fieldPath: orderBy }, direction: direction === "desc" ? "DESCENDING" : "ASCENDING" }],
-        limit,
-      };
-      const r = await call(":runQuery", { method: "POST", body: JSON.stringify({ structuredQuery }) });
-      return (r || []).filter((x) => x.document).map((x) => fromDoc(x.document));
+    async listDocs(collection, { limit } = {}) {
+      const r = await call(":runQuery", { method: "POST", body: JSON.stringify({ structuredQuery: { from: [{ collectionId: collection }] } }) });
+      const docs = (r || []).filter((x) => x.document).map((x) => fromDoc(x.document));
+      docs.sort((a, b) => b.__id.localeCompare(a.__id));
+      return limit ? docs.slice(0, limit) : docs;
     },
 
     /** Filtered query: runQuery(collection, "date", "GREATER_THAN_OR_EQUAL" | "LESS_THAN", value). */

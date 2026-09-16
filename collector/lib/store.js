@@ -8,7 +8,7 @@ export function createStore({ serviceAccountJson }) {
 
   return {
     async recentDays(limit = 7) {
-      const docs = await fs.listDocs("days", { orderBy: "__name__", direction: "desc", limit });
+      const docs = await fs.listDocs("days", { limit });
       return docs.map((d) => ({ date: d.date, items: parseJson(d.items, []) }));
     },
     async day(date) {
