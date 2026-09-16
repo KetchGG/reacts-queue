@@ -31,6 +31,11 @@
   ],
   "youtubeSearchMinViews": 5000,
   "youtubeUnitBudget": 3000,
+  "varietyKeywords": [
+    "game", "gaming", "steam", "xbox", "playstation", "nintendo", "esports", "expansion", "dlc",
+    "trailer", "reveal", "announce", "release date", "shutting down", "early access", "layoffs",
+    "patch notes", "beta", "launch", "studio", "developer", "publisher", "mmorpg", "mmo"
+  ],
 
   "subreddits": [
     { "name": "classicwow", "minScore": 150, "limit": 15 },
@@ -55,7 +60,7 @@
     "Xaryu mainly plays WoW Classic, Classic Hardcore and WoW: Forever (Blizzard's Classic+, launched Nov 4, 2026). He also does variety streams about major new game news.",
     "Official Blizzard content and Wowhead coverage beat community re-coverage of the same story.",
     "After a major Blizzard event (BlizzCon, expansion launches, big patches), official announcement and panel videos stay top priority for several days, not just the last day or two.",
-    "Big drama, strong or contrarian takes, and anything featuring Xaryu's friends (not Xaryu himself) make good react content.",
+    "Big drama, strong or contrarian takes, and anything featuring Xaryu's friends (not Xaryu himself) make good react content — but only when it's about gaming, streaming or Blizzard news. Skip personal-life drama, relationship takes or celebrity gossip with no gaming angle, even from a tracked creator.",
     "Retail-only minutiae (small hotfixes, shop items) is low priority unless it is drama."
   ]
 }

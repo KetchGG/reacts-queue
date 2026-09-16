@@ -97,6 +97,7 @@ function fakeWorld({ claudeFails = false } = {}) {
     Warcraft: { id: "UCbLj9QP9FAaHs_647QckGtg", title: "World of Warcraft" },
     Xaryu: { id: "UCxaryuxaryuxaryuxaryu01", title: "Xaryu" },
     Wowhead: { id: "UC8hLeDz9mD4dUrkvXjH9rjw", title: "Wowhead" },
+    AsmonTV: { id: "UCasmongoldTV0000000001", title: "Asmongold TV" },
   };
   const uploads = {
     UUgA_9xZNJ7_cHYUaswLGcag: [["hcm386", "Classic Hardcore Moments #386", 20], ["hcm385", "Classic Hardcore Moments #385", 50], ["hcm384", "Classic Hardcore Moments #384", 400]],
@@ -104,6 +105,7 @@ function fakeWorld({ claudeFails = false } = {}) {
     UUxaryuxaryuxaryuxaryu01: [["react000001", "Xaryu Reacts to Classic Hardcore Moments #385", 10]],
     UU8hLeDz9mD4dUrkvXjH9rjw: [["whvideo0001", "Forever beta: everything we know", 8]],
     UUYG7yOvrZV0Bja6EjImcAuQ: [],
+    UUasmongoldTV0000000001: [["offtopic1", "Nobody hates women more than women..", 5], ["ontopic1", "Massive Esports Drama Announcement Shakes Community", 6]],
   };
   const vid = (id, title, hoursAgo, channelId, channelTitle, extra = {}) => ({
     id, snippet: { title, description: "desc", channelId, channelTitle, publishedAt: iso(hoursAgo), thumbnails: { medium: { url: `https://i.ytimg.com/vi/${id}/mqdefault.jpg` } }, defaultAudioLanguage: "en" },
@@ -118,6 +120,8 @@ function fakeWorld({ claudeFails = false } = {}) {
     "whvideo0001": vid("whvideo0001", "Forever beta: everything we know", 8, channels.Wowhead.id, "Wowhead"),
     "short000001": vid("short000001", "He died to a murloc #shorts", 6, "UCsomeoneelse00000000001", "Clipper", { duration: "PT40S", views: 90000 }),
     "lowviews001": vid("lowviews001", "tiny video", 6, "UCsomeoneelse00000000002", "Nobody", { views: 12 }),
+    "offtopic1": vid("offtopic1", "Nobody hates women more than women..", 5, channels.AsmonTV.id, "Asmongold TV", { views: 250000 }),
+    "ontopic1": vid("ontopic1", "Massive Esports Drama Announcement Shakes Community", 6, channels.AsmonTV.id, "Asmongold TV", { views: 200000 }),
     "xaryuown1": vid("xaryuown1", "My BlizzCon Reaction and Thoughts", 6, channels.Xaryu.id, "Xaryu", { views: 80000 }),
   };
 
@@ -284,6 +288,10 @@ test("end to end: collects, filters, ranks with Claude, saves", async () => {
   assert.ok(oldAnnounce?.official, "48h-old official upload should still be included");
   // Xaryu's own upload never gets suggested back to him, even when a keyword search surfaces it.
   assert.ok(!urls.some((u) => u.includes("xaryuown1")), "should never suggest Xaryu react to his own video");
+  // A tracked creator's off-topic personal-drama upload (no gaming-relevance keyword) is dropped,
+  // while a gaming-relevant "variety" upload from the same creator gets through.
+  assert.ok(!urls.some((u) => u.includes("offtopic1")), "off-topic variety content should be dropped");
+  assert.ok(urls.some((u) => u.includes("ontopic1")), "on-topic variety content should still get through");
   // Low-view search result, stale news, already-listed news, low-score/stickied reddit, off-topic PC Gamer dropped
   for (const bad of ["lowviews001", "news=0/old", "news=5/listed", "/a3/", "/a4/", "pcgamer.com/deal"]) {
     assert.ok(!urls.some((u) => u.includes(bad)), `should drop ${bad}`);

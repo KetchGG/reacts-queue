@@ -134,15 +134,30 @@ export async function run({ now = new Date(), dry = DRY, noClaude = args.has("--
         } catch (e) { note(`YouTube search "${q.q}"`, e); if (e.budget) break; }
       }
 
+      if ((cfg.reactedChannels || []).length && !ownIds.size) {
+        note("Xaryu self-exclusion", new Error("could not resolve his own channel this run — his own uploads may not be filtered out"));
+      }
       const details = await yt.videoDetails([...vids.keys()]);
       await yt.channelAvatars(Object.values(details).map((d) => d.channelId), state.avatars);
+      let ownExcluded = 0, offTopicExcluded = 0;
       for (const [id, meta] of vids) {
         const v = details[id];
         if (!v || v.live === "upcoming") continue;
         if (v.lang && !/^en/i.test(v.lang)) continue;
-        if (ownIds.has(v.channelId)) continue; // never suggest Xaryu react to his own upload
+        if (ownIds.has(v.channelId)) { ownExcluded++; continue; } // never suggest Xaryu react to his own upload
         const official = officialIds.has(v.channelId);
         if (meta.origin === "youtube-search" && !official && v.views < (cfg.youtubeSearchMinViews || 0)) continue;
+        const cat = guessCat(`${v.title} ${v.description}`, official ? "blizzard" : "");
+        // A tracked creator's full upload history includes plenty of content with nothing to do
+        // with WoW or gaming news (personal drama, unrelated variety) — unlike youtubeSearches
+        // results, which are already topically scoped by their query text. Only gate the raw
+        // creator-channel firehose, and only its "variety" bucket: require a gaming-relevance
+        // signal there, same discipline the PC Gamer feed already applies via its keyword list.
+        if (meta.origin === "youtube-creator" && cat === "variety") {
+          const text = `${v.title} ${v.description}`.toLowerCase();
+          const keywords = cfg.varietyKeywords || [];
+          if (keywords.length && !keywords.some((k) => text.includes(k.toLowerCase()))) { offTopicExcluded++; continue; }
+        }
         const series = meta.series ? seriesLabel(meta.series, v.title) : "";
         const hours = ageHours(v.publishedAt);
         add({
@@ -155,7 +170,7 @@ export async function run({ now = new Date(), dry = DRY, noClaude = args.has("--
           source: v.channelTitle,
           official,
           kind: isShort(v) ? "short" : "video",
-          cat: guessCat(`${v.title} ${v.description}`, official ? "blizzard" : ""),
+          cat,
           publishedAt: v.publishedAt,
           durationSec: v.durationSec,
           thumb: v.thumb,
@@ -164,6 +179,8 @@ export async function run({ now = new Date(), dry = DRY, noClaude = args.has("--
           metrics: { views: v.views, comments: v.comments, ageHours: hours, viewsPerHour: hours ? v.views / Math.max(hours, 1) : v.views },
         });
       }
+      if (ownExcluded) log(`Excluded ${ownExcluded} of Xaryu's own uploads`);
+      if (offTopicExcluded) log(`Excluded ${offTopicExcluded} off-topic "variety" videos with no gaming-relevance keyword match`);
     } catch (e) { note("YouTube", e); }
     ytUnits = yt.unitsUsed;
     log(`YouTube: ${ytUnits} quota units used`);
